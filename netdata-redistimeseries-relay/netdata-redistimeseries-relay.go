@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/mediocregopher/radix"
+	"github.com/mediocregopher/radix/v4"
 	"log"
 	"os"
 	"os/signal"
