@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
+	"github.com/goccy/go-json"
 	"flag"
 	"fmt"
 	"github.com/mediocregopher/radix/v3"
