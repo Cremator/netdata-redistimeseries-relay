@@ -2,16 +2,17 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/mediocregopher/radix/v3"
 	"log"
 	"os"
 	"os/signal"
 	"regexp"
 	"syscall"
 	"time"
+
+	"github.com/goccy/go-json"
+	"github.com/mediocregopher/radix/v3"
 
 	"net"
 	"net/textproto"
