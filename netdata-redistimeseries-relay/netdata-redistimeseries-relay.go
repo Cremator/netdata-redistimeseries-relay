@@ -98,11 +98,12 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 			keyName := fmt.Sprintf("%s:%s:%s:%s:%s", prefix, hostname, chart_family, chart_name, metric_name)
 			addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
 			p.Append(addCmd)
-			if len(p.Properties().Keys) > 0 && time.Now().After(delay.Add(redisDelay)) {
+			t1 := time.Now()
+			if p.Properties().Keys != nil && t1.After(delay.Add(redisDelay)) {
 				if err := client.Do(ctx, p); err != nil {
 					log.Fatalf("Error while adding data points. error = %v", err)
 				}
-				fmt.Printf("INFO - %s - Processing %d entries for %s...\n", time.Now(), len(p.Properties().Keys), rem)
+				fmt.Printf("%d - Processed %d entries, time delay %dms, from %s...\n", time.Now().UnixMilli(), len(p.Properties().Keys), t1.Sub(delay).Milliseconds(), rem)
 				p.Reset()
 				delay = time.Now()
 				if err != nil {
