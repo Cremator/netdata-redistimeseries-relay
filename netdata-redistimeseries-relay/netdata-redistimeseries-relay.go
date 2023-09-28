@@ -104,7 +104,7 @@ func handleServerConnection(c net.Conn, client *radix.Pool) {
 			if err != nil {
 				log.Fatalf("Error while adding data points. error = %v", err)
 			}
-			fmt.Printf("Processing time is %s for JSON inputs, and pushing RedisTimeSeries datapoints %d...\n", time.Now().Sub(t1), len(rcv))
+			fmt.Printf("Processing time is %s for JSON inputs, and pushing RedisTimeSeries datapoints %d...\n", time.Since(t1), len(rcv))
 		}
 	}
 }
