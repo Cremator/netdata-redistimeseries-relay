@@ -29,7 +29,7 @@ var (
 func init() {
 	flag.StringVar(&listenAddress, "listen-address", "127.0.0.1:8080", "The host:port for listening for JSON inputs")
 	flag.StringVar(&redisTimeSeriesHost, "redistimeseries-host", "localhost:6379", "The host:port for Redis connection")
-	flag.DurationVar(&redisDelay, "redis-delay", time.Millisecond*500, "redis pipeline stagger ms/records, default 500")
+	flag.DurationVar(&redisDelay, "redis-delay", time.Millisecond*500, "redis pipeline stagger at least that many milliseconds, default 500")
 	flag.Parse()
 }
 
@@ -96,27 +96,19 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 			keyName := fmt.Sprintf("%s:%s:%s:%s:%s", prefix, hostname, chart_family, chart_name, metric_name)
 			addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
 			p.Append(addCmd)
-			// t1 := time.Now()
-			// l1 := len(p.Properties().Keys)
-			// if (l1 > 0 && t1.After(delay.Add(redisDelay))) || l1 > int(redisDelay.Milliseconds()) {
-			// 	if err := client.Do(ctx, p); err != nil {
-			// 		log.Fatalf("Error while adding data points. error = %v", err)
-			// 	}
-			// 	fmt.Printf("%d - Processed %d entries, %d ms since last data connection from %s...\n", time.Now().UnixMilli(), l1, t1.Sub(delay).Milliseconds(), rem)
+			t1 := time.Now()
+			l1 := len(p.Properties().Keys)
+			if l1 > 0 && t1.After(delay.Add(redisDelay)) {
+				if err := client.Do(ctx, p); err != nil {
+					log.Fatalf("Error while adding data points. error = %v", err)
+				}
+				fmt.Printf("%d - Processed %d entries, %d ms since last data connection from %s...\n", time.Now().UnixMilli(), l1, t1.Sub(delay).Milliseconds(), rem)
 
-			// 	p.Reset()
-			// 	delay = time.Now()
-			// }
+				p.Reset()
+				delay = time.Now()
+			}
 		}
 	}
-	if err := client.Do(ctx, p); err != nil {
-		log.Fatalf("Error while adding data points. error = %v", err)
-	}
-	t1 := time.Now()
-	l1 := len(p.Properties().Keys)
-	fmt.Printf("%d - Processed %d entries, %d ms since last data connection from %s...\n", time.Now().UnixMilli(), l1, t1.Sub(delay).Milliseconds(), rem)
-	//p.Reset()
-	//delay = time.Now()
 }
 
 func preProcessAndAddLabel(rcv map[string]interface{}, key string, reg *regexp.Regexp, labels []string) (value string, labelsOut []string) {
