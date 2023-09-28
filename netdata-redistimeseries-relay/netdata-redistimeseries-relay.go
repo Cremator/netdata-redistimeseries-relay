@@ -110,7 +110,7 @@ func handleServerConnection(c net.Conn, client *radix.Pool) {
 			if cmds != nil && time.Since(t1) > time.Millisecond*500 {
 				p := radix.Pipeline(cmds...)
 				err = client.Do(p)
-				fmt.Printf("Processing %d entries, time since is %s...\n", len(cmds), time.Since(t1))
+				fmt.Printf("%s - Processing %d entries, time since is %s...\n", time.Now(), len(cmds), time.Since(t1))
 				cmds = nil
 				t1 = time.Now()
 				if err != nil {
