@@ -70,7 +70,7 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 	var rcv map[string]interface{}
 	rem := c.RemoteAddr().String()
 	p := radix.NewPipeline()
-	//t1 := time.Now()
+	delay := time.Now().UnixMilli()
 	reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
 	if err != nil {
 		log.Fatal(err)
@@ -100,7 +100,7 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 			keyName := fmt.Sprintf("%s:%s:%s:%s:%s", prefix, hostname, chart_family, chart_name, metric_name)
 			addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
 			p.Append(addCmd)
-			if p.Properties().Keys != nil { //&& time.Since(t1) > time.Millisecond*500 {
+			if len(p.Properties().Keys) > 0 && time.Now().UnixMilli() >= delay+500 {
 				if err := client.Do(ctx, p); err != nil {
 					log.Fatalf("Error while adding data points. error = %v", err)
 				}
