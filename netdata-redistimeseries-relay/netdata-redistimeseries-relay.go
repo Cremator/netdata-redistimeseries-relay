@@ -102,7 +102,7 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 				if err := client.Do(ctx, p); err != nil {
 					log.Fatalf("Error while adding data points. error = %v", err)
 				}
-				fmt.Printf("%d - Processed %d entries, %d ms since last data connection from %s...\n", time.Now().UnixMilli(), l1, t1.Sub(delay).Milliseconds(), rem)
+				fmt.Printf("%d - Processed %d entries, %d ms since last data connection from %s - %s...\n", time.Now().UnixMilli(), l1, t1.Sub(delay).Milliseconds(), hostname, rem)
 
 				p.Reset()
 				delay = time.Now()
