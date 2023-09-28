@@ -76,14 +76,17 @@ func handleServerConnection(c net.Conn, client *radix.Pool) {
 	}
 
 	defer c.Close()
+	cmds := []radix.CmdAction{}
+	//p := radix.Pipeline(cmds...)
+	t1 := time.Now()
 	for {
-		t1 := time.Now()
+		//t1 := time.Now()
 		// read one line (ended with \n or \r\n)
 		line, err := tp.ReadLineBytes()
 		if err == nil {
 			json.Unmarshal(line, &rcv)
 			var labels []string = nil
-			t2 := time.Now()
+			//t2 := time.Now()
 			prefix, labels := preProcessAndAddLabel(rcv, "prefix", reg, labels)
 			hostname, labels := preProcessAndAddLabel(rcv, "hostname", reg, labels)
 			_, labels = preProcessAndAddLabel(rcv, "chart_context", reg, labels)
@@ -101,14 +104,26 @@ func handleServerConnection(c net.Conn, client *radix.Pool) {
 			//Metrics are sent to the database server as prefix:hostname:chart_family:chart_name:metric_name.
 			keyName := fmt.Sprintf("%s:%s:%s:%s:%s", prefix, hostname, chart_family, chart_name, metric_name)
 			addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
-			t3 := time.Now()
-			err = client.Do(addCmd)
-			if err != nil {
-				log.Fatalf("Error while adding data points. error = %v", err)
+			//t3 := time.Now()
+			//err = client.Do(addCmd)
+			cmds = append(cmds, addCmd)
+			if len(cmds) > 99 {
+				p := radix.Pipeline(cmds...)
+				err = client.Do(p)
+				cmds = nil
+				fmt.Printf("Processing time is %s...\n", time.Since(t1))
+				t1 = time.Now()
+				if err != nil {
+					log.Fatalf("Error while adding data points. error = %v", err)
+				}
 			}
-			fmt.Printf("Processing time is %s for JSON unmarshal, %s for regex, %s for TS.ADD, %s total.\n", t2.Sub(t1), t3.Sub(t2), time.Since(t3), time.Since(t1))
+			// if err != nil {
+			// 	log.Fatalf("Error while adding data points. error = %v", err)
+			// }
+			//fmt.Printf("Processing time is %s for JSON unmarshal, %s for regex, %s for TS.ADD, %s total.\n", t2.Sub(t1), t3.Sub(t2), time.Since(t3), time.Since(t1))
 		}
 	}
+
 }
 
 func preProcessAndAddLabel(rcv map[string]interface{}, key string, reg *regexp.Regexp, labels []string) (value string, labelsOut []string) {
