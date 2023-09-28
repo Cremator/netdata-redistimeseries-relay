@@ -23,16 +23,14 @@ import (
 var (
 	listenAddress       string
 	redisTimeSeriesHost string
-	//poolPipelineConcurrency int
-	//poolPipelineWindow      time.Duration
+	redisDelay          time.Duration
 )
 
 // Options:
 func init() {
 	flag.StringVar(&listenAddress, "listen-address", "127.0.0.1:8080", "The host:port for listening for JSON inputs")
 	flag.StringVar(&redisTimeSeriesHost, "redistimeseries-host", "localhost:6379", "The host:port for Redis connection")
-	//flag.DurationVar(&poolPipelineWindow, "pipeline-window-ms", time.Millisecond*0, "If window is zero then implicit pipelining will be disabled")
-	//flag.IntVar(&poolPipelineConcurrency, "pipeline-max-size", 0, "If limit is zero then no limit will be used and pipelines will only be limited by the specified time window")
+	flag.DurationVar(&redisDelay, "redis-delay", time.Millisecond*500, "redis TS.ADD stagger ms")
 	flag.Parse()
 }
 
@@ -70,7 +68,7 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 	var rcv map[string]interface{}
 	rem := c.RemoteAddr().String()
 	p := radix.NewPipeline()
-	delay := time.Now().UnixMilli()
+	delay := time.Now()
 	reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
 	if err != nil {
 		log.Fatal(err)
@@ -100,13 +98,13 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 			keyName := fmt.Sprintf("%s:%s:%s:%s:%s", prefix, hostname, chart_family, chart_name, metric_name)
 			addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
 			p.Append(addCmd)
-			if len(p.Properties().Keys) > 0 && time.Now().UnixMilli() >= delay+500 {
+			if len(p.Properties().Keys) > 0 && time.Now().After(delay.Add(redisDelay)) {
 				if err := client.Do(ctx, p); err != nil {
 					log.Fatalf("Error while adding data points. error = %v", err)
 				}
 				fmt.Printf("INFO - %s - Processing %d entries for %s...\n", time.Now(), len(p.Properties().Keys), rem)
 				p.Reset()
-				//t1 = time.Now()
+				delay = time.Now()
 				if err != nil {
 					log.Fatalf("Error while adding data points. error = %v", err)
 				}
