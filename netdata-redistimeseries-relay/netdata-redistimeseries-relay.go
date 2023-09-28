@@ -107,11 +107,11 @@ func handleServerConnection(c net.Conn, client *radix.Pool) {
 			//t3 := time.Now()
 			//err = client.Do(addCmd)
 			cmds = append(cmds, addCmd)
-			if len(cmds) > 99 {
+			if cmds != nil && time.Since(t1) > time.Millisecond*500 {
 				p := radix.Pipeline(cmds...)
 				err = client.Do(p)
+				fmt.Printf("Processing %d entries, time since is %s...\n", len(cmds), time.Since(t1))
 				cmds = nil
-				fmt.Printf("Processing time is %s...\n", time.Since(t1))
 				t1 = time.Now()
 				if err != nil {
 					log.Fatalf("Error while adding data points. error = %v", err)
