@@ -77,12 +77,13 @@ func handleServerConnection(c net.Conn, client *radix.Pool) {
 
 	defer c.Close()
 	for {
-		//t1 := time.Now()
+		t1 := time.Now()
 		// read one line (ended with \n or \r\n)
 		line, err := tp.ReadLineBytes()
 		if err == nil {
 			json.Unmarshal(line, &rcv)
 			var labels []string = nil
+			t2 := time.Now()
 			prefix, labels := preProcessAndAddLabel(rcv, "prefix", reg, labels)
 			hostname, labels := preProcessAndAddLabel(rcv, "hostname", reg, labels)
 			_, labels = preProcessAndAddLabel(rcv, "chart_context", reg, labels)
@@ -100,11 +101,12 @@ func handleServerConnection(c net.Conn, client *radix.Pool) {
 			//Metrics are sent to the database server as prefix:hostname:chart_family:chart_name:metric_name.
 			keyName := fmt.Sprintf("%s:%s:%s:%s:%s", prefix, hostname, chart_family, chart_name, metric_name)
 			addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
+			t3 := time.Now()
 			err = client.Do(addCmd)
 			if err != nil {
 				log.Fatalf("Error while adding data points. error = %v", err)
 			}
-			//fmt.Printf("Processing time is %s for JSON inputs, and pushing RedisTimeSeries datapoints %d...\n", time.Since(t1), len(rcv))
+			fmt.Printf("Processing time is %s for JSON unmarshal, %s for TS.ADD, %s total.\n", t2.Sub(t1), time.Since(t3), time.Since(t1))
 		}
 	}
 }
