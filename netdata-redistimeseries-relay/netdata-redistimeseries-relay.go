@@ -68,17 +68,17 @@ func handleServerConnection(c net.Conn, client *radix.Pool) {
 
 	reader := bufio.NewReader(c)
 	tp := textproto.NewReader(reader)
+	peek, _ := reader.Peek(64)
 	var rcv map[string]interface{}
 	rem := c.RemoteAddr().String()
+	cmds := []radix.CmdAction{}
+	t1 := time.Now()
 	reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	defer c.Close()
-	cmds := []radix.CmdAction{}
-	//p := radix.Pipeline(cmds...)
-	t1 := time.Now()
 	for {
 		//t1 := time.Now()
 		// read one line (ended with \n or \r\n)
@@ -110,7 +110,8 @@ func handleServerConnection(c net.Conn, client *radix.Pool) {
 			if cmds != nil && time.Since(t1) > time.Millisecond*500 {
 				p := radix.Pipeline(cmds...)
 				err = client.Do(p)
-				fmt.Printf("%s - Processing %d entries for %s...\n", time.Now(), len(cmds), rem)
+				fmt.Printf("INFO - %s - Processing %d entries for %s...\n", time.Now(), len(cmds), rem)
+				fmt.Printf("PEEK - %s\n", string(peek))
 				cmds = nil
 				t1 = time.Now()
 				if err != nil {
