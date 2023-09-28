@@ -12,35 +12,35 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-	"github.com/mediocregopher/radix/v3"
+	"github.com/mediocregopher/radix/v4"
 
+	"context"
 	"net"
 	"net/textproto"
 )
 
 // Program option vars:
 var (
-	listenAddress           string
-	redisTimeSeriesHost     string
-	poolPipelineConcurrency int
-	poolPipelineWindow      time.Duration
+	listenAddress       string
+	redisTimeSeriesHost string
+	//poolPipelineConcurrency int
+	//poolPipelineWindow      time.Duration
 )
 
 // Options:
 func init() {
 	flag.StringVar(&listenAddress, "listen-address", "127.0.0.1:8080", "The host:port for listening for JSON inputs")
 	flag.StringVar(&redisTimeSeriesHost, "redistimeseries-host", "localhost:6379", "The host:port for Redis connection")
-	flag.DurationVar(&poolPipelineWindow, "pipeline-window-ms", time.Millisecond*0, "If window is zero then implicit pipelining will be disabled")
-	flag.IntVar(&poolPipelineConcurrency, "pipeline-max-size", 0, "If limit is zero then no limit will be used and pipelines will only be limited by the specified time window")
+	//flag.DurationVar(&poolPipelineWindow, "pipeline-window-ms", time.Millisecond*0, "If window is zero then implicit pipelining will be disabled")
+	//flag.IntVar(&poolPipelineConcurrency, "pipeline-max-size", 0, "If limit is zero then no limit will be used and pipelines will only be limited by the specified time window")
 	flag.Parse()
 }
 
 func server() {
 	// listen on a port
-	var vanillaClient *radix.Pool
-	poolSize := 1
-	poolOptions := radix.PoolPipelineWindow(poolPipelineWindow, poolPipelineConcurrency)
-	vanillaClient, err := radix.NewPool("tcp", redisTimeSeriesHost, poolSize, poolOptions)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	vanillaClient, err := (radix.PoolConfig{}).New(ctx, "tcp", redisTimeSeriesHost) // or any other client
 	if err != nil {
 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	}
@@ -59,11 +59,11 @@ func server() {
 			continue
 		}
 		// handle the connection
-		go handleServerConnection(c, vanillaClient)
+		go handleServerConnection(c, vanillaClient, ctx)
 	}
 }
 
-func handleServerConnection(c net.Conn, client *radix.Pool) {
+func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context) {
 	defer c.Close()
 
 	reader := bufio.NewReader(c)
@@ -71,7 +71,8 @@ func handleServerConnection(c net.Conn, client *radix.Pool) {
 	peek, _ := reader.Peek(64)
 	var rcv map[string]interface{}
 	rem := c.RemoteAddr().String()
-	cmds := []radix.CmdAction{}
+	p := radix.NewPipeline()
+	//cmds := []radix.CmdAction{}
 	t1 := time.Now()
 	reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
 	if err != nil {
@@ -106,13 +107,18 @@ func handleServerConnection(c net.Conn, client *radix.Pool) {
 			addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
 			//t3 := time.Now()
 			//err = client.Do(addCmd)
-			cmds = append(cmds, addCmd)
-			if cmds != nil && time.Since(t1) > time.Millisecond*500 {
-				p := radix.Pipeline(cmds...)
-				err = client.Do(p)
-				fmt.Printf("INFO - %s - Processing %d entries for %s...\n", time.Now(), len(cmds), rem)
+			//cmds = append(cmds, addCmd)
+			p.Append(addCmd)
+			if p.Properties().Keys != nil && time.Since(t1) > time.Millisecond*500 {
+				//p := radix.Pipeline(cmds...)
+				//err = client.Do(p)
+				if err := client.Do(ctx, p); err != nil {
+					log.Fatalf("Error while adding data points. error = %v", err)
+				}
+				fmt.Printf("INFO - %s - Processing %d entries for %s...\n", time.Now(), len(p.Properties().Keys), rem)
 				fmt.Printf("PEEK - %s\n", string(peek))
-				cmds = nil
+				//cmds = nil
+				p.Reset()
 				t1 = time.Now()
 				if err != nil {
 					log.Fatalf("Error while adding data points. error = %v", err)
