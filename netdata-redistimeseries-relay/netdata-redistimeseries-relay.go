@@ -16,7 +16,7 @@ import (
 
 	"context"
 	"net"
-	"net/textproto"
+	//"net/textproto"
 )
 
 // Program option vars:
@@ -63,8 +63,8 @@ func server() {
 func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context) {
 	defer c.Close()
 
-	reader := bufio.NewReader(c)
-	tp := textproto.NewReader(reader)
+	reader := bufio.NewScanner(c)
+	//tp := textproto.NewReader(reader)
 	var rcv map[string]interface{}
 	rem := c.RemoteAddr().String()
 	p := radix.NewPipeline()
@@ -75,8 +75,8 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 	}
 
 	defer c.Close()
-	for {
-		line, err := tp.ReadLineBytes()
+	for reader.Scan() {
+		line := reader.Bytes()
 		if err == nil {
 			json.Unmarshal(line, &rcv)
 			var labels []string = nil
@@ -104,6 +104,7 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 					log.Fatalf("Error while adding data points. error = %v", err)
 				}
 				fmt.Printf("%d - Processed %d entries, time delay %d ms, from %s...\n", time.Now().UnixMilli(), len(p.Properties().Keys), t1.Sub(delay).Milliseconds(), rem)
+
 				p.Reset()
 				delay = time.Now()
 				if err != nil {
