@@ -68,7 +68,7 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 
 	reader := bufio.NewReader(c)
 	tp := textproto.NewReader(reader)
-	peek, _ := reader.Peek(64)
+	//peek, _ := reader.Peek(64)
 	var rcv map[string]interface{}
 	rem := c.RemoteAddr().String()
 	p := radix.NewPipeline()
@@ -116,7 +116,7 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 					log.Fatalf("Error while adding data points. error = %v", err)
 				}
 				fmt.Printf("INFO - %s - Processing %d entries for %s...\n", time.Now(), len(p.Properties().Keys), rem)
-				fmt.Printf("PEEK - %s\n", string(peek))
+				//fmt.Printf("PEEK - %s\n", string(peek))
 				//cmds = nil
 				p.Reset()
 				t1 = time.Now()
