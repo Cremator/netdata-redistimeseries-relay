@@ -16,7 +16,6 @@ import (
 
 	"context"
 	"net"
-	//"net/textproto"
 )
 
 // Program option vars:
@@ -30,7 +29,7 @@ var (
 func init() {
 	flag.StringVar(&listenAddress, "listen-address", "127.0.0.1:8080", "The host:port for listening for JSON inputs")
 	flag.StringVar(&redisTimeSeriesHost, "redistimeseries-host", "localhost:6379", "The host:port for Redis connection")
-	flag.DurationVar(&redisDelay, "redis-delay", time.Millisecond*500, "redis TS.ADD stagger ms")
+	flag.DurationVar(&redisDelay, "redis-delay", time.Millisecond*500, "redis pipeline stagger ms/records, default 500")
 	flag.Parse()
 }
 
@@ -47,7 +46,7 @@ func server() {
 		log.Fatalf("Error while trying to listen to %s. error = %v", listenAddress, err)
 		return
 	}
-	fmt.Printf("Listening at %s for JSON inputs, and pushing RedisTimeSeries datapoints to %s...\n", listenAddress, redisTimeSeriesHost)
+	fmt.Printf("Listening at %s for netdata JSON inputs, and pushing RedisTimeSeries datapoints to %s...\n", listenAddress, redisTimeSeriesHost)
 	for {
 		// accept a connection
 		c, err := ln.Accept()
@@ -64,7 +63,6 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 	defer c.Close()
 
 	reader := bufio.NewScanner(c)
-	//tp := textproto.NewReader(reader)
 	var rcv map[string]interface{}
 	rem := c.RemoteAddr().String()
 	p := radix.NewPipeline()
@@ -99,11 +97,12 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 			addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
 			p.Append(addCmd)
 			t1 := time.Now()
-			if p.Properties().Keys != nil && t1.After(delay.Add(redisDelay)) {
+			l1 := len(p.Properties().Keys)
+			if (l1 > 0 && t1.After(delay.Add(redisDelay))) || l1 > int(redisDelay.Milliseconds()) {
 				if err := client.Do(ctx, p); err != nil {
 					log.Fatalf("Error while adding data points. error = %v", err)
 				}
-				fmt.Printf("%d - Processed %d entries, time delay %d ms, from %s...\n", time.Now().UnixMilli(), len(p.Properties().Keys), t1.Sub(delay).Milliseconds(), rem)
+				fmt.Printf("%d - Processed %d entries, %d ms since last data connection from %s...\n", time.Now().UnixMilli(), l1, t1.Sub(delay).Milliseconds(), rem)
 
 				p.Reset()
 				delay = time.Now()
