@@ -38,7 +38,7 @@ func init() {
 func server() {
 	// listen on a port
 	var vanillaClient *radix.Pool
-	poolSize := 1000
+	poolSize := 1
 	poolOptions := radix.PoolPipelineWindow(poolPipelineWindow, poolPipelineConcurrency)
 	vanillaClient, err := radix.NewPool("tcp", redisTimeSeriesHost, poolSize, poolOptions)
 	if err != nil {
