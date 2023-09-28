@@ -106,7 +106,7 @@ func handleServerConnection(c net.Conn, client *radix.Pool) {
 			if err != nil {
 				log.Fatalf("Error while adding data points. error = %v", err)
 			}
-			fmt.Printf("Processing time is %s for JSON unmarshal, %s for TS.ADD, %s total.\n", t2.Sub(t1), time.Since(t3), time.Since(t1))
+			fmt.Printf("Processing time is %s for JSON unmarshal, %s for regex, %s for TS.ADD, %s total.\n", t2.Sub(t1), t3.Sub(t2), time.Since(t3), time.Since(t1))
 		}
 	}
 }
