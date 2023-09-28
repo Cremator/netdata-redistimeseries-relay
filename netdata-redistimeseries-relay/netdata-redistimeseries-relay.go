@@ -67,12 +67,10 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 
 	reader := bufio.NewReader(c)
 	tp := textproto.NewReader(reader)
-	//peek, _ := reader.Peek(64)
 	var rcv map[string]interface{}
 	rem := c.RemoteAddr().String()
 	p := radix.NewPipeline()
-	//cmds := []radix.CmdAction{}
-	t1 := time.Now()
+	//t1 := time.Now()
 	reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
 	if err != nil {
 		log.Fatal(err)
@@ -80,13 +78,10 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 
 	defer c.Close()
 	for {
-		//t1 := time.Now()
-		// read one line (ended with \n or \r\n)
 		line, err := tp.ReadLineBytes()
 		if err == nil {
 			json.Unmarshal(line, &rcv)
 			var labels []string = nil
-			//t2 := time.Now()
 			prefix, labels := preProcessAndAddLabel(rcv, "prefix", reg, labels)
 			hostname, labels := preProcessAndAddLabel(rcv, "hostname", reg, labels)
 			_, labels = preProcessAndAddLabel(rcv, "chart_context", reg, labels)
@@ -104,29 +99,18 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 			//Metrics are sent to the database server as prefix:hostname:chart_family:chart_name:metric_name.
 			keyName := fmt.Sprintf("%s:%s:%s:%s:%s", prefix, hostname, chart_family, chart_name, metric_name)
 			addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
-			//t3 := time.Now()
-			//err = client.Do(addCmd)
-			//cmds = append(cmds, addCmd)
 			p.Append(addCmd)
-			if p.Properties().Keys != nil && time.Since(t1) > time.Millisecond*500 {
-				//p := radix.Pipeline(cmds...)
-				//err = client.Do(p)
+			if p.Properties().Keys != nil { //&& time.Since(t1) > time.Millisecond*500 {
 				if err := client.Do(ctx, p); err != nil {
 					log.Fatalf("Error while adding data points. error = %v", err)
 				}
 				fmt.Printf("INFO - %s - Processing %d entries for %s...\n", time.Now(), len(p.Properties().Keys), rem)
-				//fmt.Printf("PEEK - %s\n", string(peek))
-				//cmds = nil
 				p.Reset()
-				t1 = time.Now()
+				//t1 = time.Now()
 				if err != nil {
 					log.Fatalf("Error while adding data points. error = %v", err)
 				}
 			}
-			// if err != nil {
-			// 	log.Fatalf("Error while adding data points. error = %v", err)
-			// }
-			//fmt.Printf("Processing time is %s for JSON unmarshal, %s for regex, %s for TS.ADD, %s total.\n", t2.Sub(t1), t3.Sub(t2), time.Since(t3), time.Since(t1))
 		}
 	}
 
