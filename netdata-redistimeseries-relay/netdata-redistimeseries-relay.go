@@ -103,7 +103,7 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 				if err := client.Do(ctx, p); err != nil {
 					log.Fatalf("Error while adding data points. error = %v", err)
 				}
-				fmt.Printf("%d - Processed %d entries, time delay %dms, from %s...\n", time.Now().UnixMilli(), len(p.Properties().Keys), t1.Sub(delay).Milliseconds(), rem)
+				fmt.Printf("%d - Processed %d entries, time delay %d ms, from %s...\n", time.Now().UnixMilli(), len(p.Properties().Keys), t1.Sub(delay).Milliseconds(), rem)
 				p.Reset()
 				delay = time.Now()
 				if err != nil {
