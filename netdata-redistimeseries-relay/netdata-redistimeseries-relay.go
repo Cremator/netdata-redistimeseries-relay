@@ -68,7 +68,6 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 	rem := c.RemoteAddr().String()
 	p := radix.NewPipeline()
 	delay := time.Now()
-	ticker := time.NewTicker(redisDelay)
 	reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
 	if err != nil {
 		log.Fatal(err)
@@ -100,6 +99,7 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 		p.Append(addCmd)
 		t1 := time.Now()
 		l1 := len(p.Properties().Keys)
+		ticker := time.NewTicker(redisDelay)
 		for ; ; <-ticker.C {
 			if l1 > 0 && t1.After(delay.Add(redisDelay)) {
 				if err := client.Do(ctx, p); err != nil {
@@ -108,6 +108,7 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 				showLog(l1, hostname, rem, delay, t1, string(line))
 				p.Reset()
 				delay = time.Now()
+				ticker.Stop()
 			}
 		}
 	}
