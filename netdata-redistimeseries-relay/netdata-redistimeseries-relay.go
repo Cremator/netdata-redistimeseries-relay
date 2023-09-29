@@ -41,7 +41,6 @@ func server() {
 	if err != nil {
 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	}
-
 	ln, err := net.Listen("tcp", listenAddress)
 	if err != nil {
 		log.Fatalf("Error while trying to listen to %s. error = %v", listenAddress, err)
@@ -62,7 +61,7 @@ func server() {
 
 func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context) {
 	defer c.Close()
-
+	defer client.Close()
 	reader := bufio.NewScanner(c)
 	var rcv map[string]interface{}
 	rem := c.RemoteAddr().String()
@@ -72,8 +71,6 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	defer c.Close()
 
 	for reader.Scan() {
 		line := reader.Bytes()
