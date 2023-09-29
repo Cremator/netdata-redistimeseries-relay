@@ -99,17 +99,13 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 		p.Append(addCmd)
 		t1 := time.Now()
 		l1 := len(p.Properties().Keys)
-		ticker := time.NewTicker(redisDelay)
-		for ; ; <-ticker.C {
-			if l1 > 0 && t1.After(delay.Add(redisDelay)) {
-				if err := client.Do(ctx, p); err != nil {
-					log.Fatalf("Error while adding data points. error = %v", err)
-				}
-				showLog(l1, hostname, rem, delay, t1, string(line))
-				p.Reset()
-				delay = time.Now()
-				ticker.Stop()
+		if l1 > 0 && t1.After(delay.Add(redisDelay)) {
+			if err := client.Do(ctx, p); err != nil {
+				log.Fatalf("Error while adding data points. error = %v", err)
 			}
+			showLog(l1, hostname, rem, delay, t1, string(line))
+			p.Reset()
+			delay = time.Now()
 		}
 	}
 }
