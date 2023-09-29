@@ -48,12 +48,12 @@ func server() {
 		log.Fatalf("Error while trying to listen to %s. error = %v", listenAddress, err)
 		return
 	}
-	fmt.Printf("Listening at %s for netdata JSON inputs, and pushing RedisTimeSeries datapoints to %s...\n", listenAddress, redisTimeSeriesHost)
+	log.Printf("Listening at %s for netdata JSON inputs, and pushing RedisTimeSeries datapoints to %s...\n", listenAddress, redisTimeSeriesHost)
 	for {
 		// accept a connection
 		c, err := ln.Accept()
 		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
 			continue
 		}
 		// handle the connection
@@ -129,7 +129,7 @@ func showLog(l1 int, host string, rem string, delay time.Time, t1 time.Time, det
 	if logConn == "none" {
 		return
 	}
-	log.Printf("%d - Processed %d entries, %d ms since last data connection from %s - %s...\n", time.Now().UnixMilli(), l1, t1.Sub(delay).Milliseconds(), host, rem)
+	log.Printf("Processed %d entries, %d ms since last data connection from %s - %s...\n", l1, t1.Sub(delay).Milliseconds(), host, rem)
 	if logConn == "detailed" {
 		log.Printf("%s\n", detailed)
 	}
