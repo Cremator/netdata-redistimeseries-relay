@@ -23,13 +23,15 @@ var (
 	listenAddress       string
 	redisTimeSeriesHost string
 	redisDelay          time.Duration
+	logConn             string
 )
 
 // Options:
 func init() {
 	flag.StringVar(&listenAddress, "listen-address", "127.0.0.1:8080", "The host:port for listening for JSON inputs")
 	flag.StringVar(&redisTimeSeriesHost, "redistimeseries-host", "localhost:6379", "The host:port for Redis connection")
-	flag.DurationVar(&redisDelay, "redis-delay", time.Millisecond*500, "redis pipeline stagger at least that many milliseconds, default 500")
+	flag.DurationVar(&redisDelay, "redis-delay", time.Millisecond*500, "Redis TS.ADD pipeline stagger at least that many milliseconds")
+	flag.StringVar(&logConn, "connection-log", "standard", "Show per connection detailed log output - none, standard, detail")
 	flag.Parse()
 }
 
@@ -73,40 +75,40 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 	}
 
 	defer c.Close()
+
 	for reader.Scan() {
 		line := reader.Bytes()
-		if err == nil {
-			json.Unmarshal(line, &rcv)
-			var labels []string = nil
-			prefix, labels := preProcessAndAddLabel(rcv, "prefix", reg, labels)
-			hostname, labels := preProcessAndAddLabel(rcv, "hostname", reg, labels)
-			_, labels = preProcessAndAddLabel(rcv, "chart_context", reg, labels)
-			_, labels = preProcessAndAddLabel(rcv, "chart_id", reg, labels)
-			_, labels = preProcessAndAddLabel(rcv, "chart_type", reg, labels)
-			chart_family, labels := preProcessAndAddLabel(rcv, "chart_family", reg, labels)
-			chart_name, labels := preProcessAndAddLabel(rcv, "chart_name", reg, labels)
-			_, labels = preProcessAndAddLabel(rcv, "id", reg, labels)
-			metric_name, labels := preProcessAndAddLabel(rcv, "name", reg, labels)
-			_, labels = preProcessAndAddLabel(rcv, "units", reg, labels)
+		json.Unmarshal(line, &rcv)
+		var labels []string = nil
+		prefix, labels := preProcessAndAddLabel(rcv, "prefix", reg, labels)
+		hostname, labels := preProcessAndAddLabel(rcv, "hostname", reg, labels)
+		_, labels = preProcessAndAddLabel(rcv, "chart_context", reg, labels)
+		_, labels = preProcessAndAddLabel(rcv, "chart_id", reg, labels)
+		_, labels = preProcessAndAddLabel(rcv, "chart_type", reg, labels)
+		chart_family, labels := preProcessAndAddLabel(rcv, "chart_family", reg, labels)
+		chart_name, labels := preProcessAndAddLabel(rcv, "chart_name", reg, labels)
+		_, labels = preProcessAndAddLabel(rcv, "id", reg, labels)
+		metric_name, labels := preProcessAndAddLabel(rcv, "name", reg, labels)
+		_, labels = preProcessAndAddLabel(rcv, "units", reg, labels)
 
-			value := rcv["value"].(float64)
-			timestamp := int64(rcv["timestamp"].(float64) * 1000.0)
+		value := rcv["value"].(float64)
+		timestamp := int64(rcv["timestamp"].(float64) * 1000.0)
 
-			//Metrics are sent to the database server as prefix:hostname:chart_family:chart_name:metric_name.
-			keyName := fmt.Sprintf("%s:%s:%s:%s:%s", prefix, hostname, chart_family, chart_name, metric_name)
-			addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
-			p.Append(addCmd)
-			t1 := time.Now()
-			l1 := len(p.Properties().Keys)
-			if l1 > 0 && t1.After(delay.Add(redisDelay)) {
-				if err := client.Do(ctx, p); err != nil {
-					log.Fatalf("Error while adding data points. error = %v", err)
-				}
-				fmt.Printf("%d - Processed %d entries, %d ms since last data connection from %s - %s...\n", time.Now().UnixMilli(), l1, t1.Sub(delay).Milliseconds(), hostname, rem)
-
-				p.Reset()
-				delay = time.Now()
+		//Metrics are sent to the database server as prefix:hostname:chart_family:chart_name:metric_name.
+		keyName := fmt.Sprintf("%s:%s:%s:%s:%s", prefix, hostname, chart_family, chart_name, metric_name)
+		addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
+		p.Append(addCmd)
+		t1 := time.Now()
+		l1 := len(p.Properties().Keys)
+		if l1 > 0 && t1.After(delay.Add(redisDelay)) {
+			if err := client.Do(ctx, p); err != nil {
+				log.Fatalf("Error while adding data points. error = %v", err)
 			}
+			showLog(l1, hostname, rem, delay, t1, string(line))
+			fmt.Printf("%d - Processed %d entries, %d ms since last data connection from %s - %s...\n", time.Now().UnixMilli(), l1, t1.Sub(delay).Milliseconds(), hostname, rem)
+
+			p.Reset()
+			delay = time.Now()
 		}
 	}
 }
@@ -125,8 +127,18 @@ func preProcessAndAddLabel(rcv map[string]interface{}, key string, reg *regexp.R
 	return
 }
 
+func showLog(l1 int, host string, rem string, delay time.Time, t1 time.Time, detailed string) {
+	if logConn == "none" {
+		return
+	}
+	log.Printf("%d - Processed %d entries, %d ms since last data connection from %s - %s...\n", time.Now().UnixMilli(), l1, t1.Sub(delay).Milliseconds(), host, rem)
+	if logConn == "detailed" {
+		log.Printf("%s\n", detailed)
+	}
+}
+
 func main() {
-	fmt.Println("Starting netdata-redistimeseries-relay...")
+	log.Println("Starting netdata-redistimeseries-relay...")
 	go server()
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
@@ -136,5 +148,5 @@ func main() {
 		done <- true
 	}()
 	<-done
-	fmt.Println("Exiting...")
+	log.Println("Exiting...")
 }
