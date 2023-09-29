@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -95,7 +94,7 @@ func handleServerConnection(c net.Conn, client radix.Client, ctx context.Context
 		timestamp := int64(rcv["timestamp"].(float64) * 1000.0)
 
 		//Metrics are sent to the database server as prefix:hostname:chart_family:chart_name:metric_name.
-		keyName := fmt.Sprintf("%s:%s:%s:%s:%s", prefix, hostname, chart_family, chart_name, metric_name)
+		keyName := prefix + ":" + hostname + ":" + chart_family + ":" + chart_name + ":" + metric_name
 		addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
 		p.Append(addCmd)
 		t1 := time.Now()
