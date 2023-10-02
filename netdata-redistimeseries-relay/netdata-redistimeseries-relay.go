@@ -27,6 +27,7 @@ var (
 	redisTimeSeriesHost string
 	redisDelay          time.Duration
 	logConn             string
+	redisBulk           int
 
 // Ctx                 = context.Background()
 )
@@ -35,7 +36,8 @@ var (
 func init() {
 	flag.StringVar(&listenAddress, "listen-address", "127.0.0.1:8080", "The host:port for listening for JSON inputs")
 	flag.StringVar(&redisTimeSeriesHost, "redistimeseries-host", "localhost:6379", "The host:port for Redis connection")
-	flag.DurationVar(&redisDelay, "redis-delay", time.Microsecond*500, "Redis TS.ADD pipeline stagger at least that many milliseconds")
+	flag.DurationVar(&redisDelay, "redis-delay", time.Millisecond*500, "Redis TS.ADD pipeline stagger at least that many milliseconds")
+	flag.IntVar(&redisBulk, "redis-delay", 5000, "Redis TS.ADD pipeline stagger at least that many milliseconds")
 	flag.StringVar(&logConn, "connection-log", "standard", "Show per connection detailed log output - none, standard, detail")
 	flag.Parse()
 }
@@ -74,7 +76,7 @@ func handleServerConnection(c net.Conn, client rueidis.Client) {
 	reader := bufio.NewScanner(c)
 	var rcv map[string]interface{}
 	rem := c.RemoteAddr().String()
-	p := 0
+	cmds := make(rueidis.Commands, 0, redisBulk)
 	delay := time.Now()
 	reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
 	if err != nil {
@@ -110,15 +112,19 @@ func handleServerConnection(c net.Conn, client rueidis.Client) {
 			addCmd.Labels(prefix, label)
 		}
 		//addCmd.Build()
+		cmds = append(cmds, addCmd.Build())
 		t1 := time.Now()
-		p++
-		resp := client.Do(context.Background(), addCmd.Build())
-		if err := resp.Error(); err != nil {
-			log.Fatalf("Error while adding data points. error = %v", err)
+		l1 := len(cmds)
+		if l1 > 0 && t1.After(delay.Add(redisDelay)) {
+			for _, resp := range client.DoMulti(context.Background(), cmds...) {
+				if err := resp.Error(); err != nil {
+					log.Fatalf("Error while adding data points. error = %v", err)
+				}
+			}
+			showLog(l1, hostname, rem, delay, t1, string(line))
+			//p.Reset()
+			delay = time.Now()
 		}
-		showLog(p, hostname, rem, delay, t1, string(line))
-		p = 0
-		delay = time.Now()
 		//addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
 		//rtsLabels := make(rueidis.Commands, 0, 10)
 		//addCmd := client.Do(context.Background(), client.B().TsAdd().Key(keyName).Timestamp(string(timestamp)).Value(value).Labels().Labels("prefix", labels["prefix"]).)
