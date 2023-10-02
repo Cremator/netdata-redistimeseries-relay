@@ -21,6 +21,16 @@ import (
 	"net"
 )
 
+// type datapoint struct {
+// 	URL         string        `json:"url"`
+// 	Title       string        `json:"title"`
+// 	CustomShort string        `json:"short"`
+// 	Expiry      time.Duration `json:"expiry"`
+// 	Code        int           `json:"code"`
+// 	Hash        string        `json:"hash"`
+// 	Counter     int           `json:"counter"`
+// }
+
 // Program option vars:
 var (
 	listenAddress       string
@@ -38,7 +48,7 @@ func init() {
 	flag.StringVar(&redisTimeSeriesHost, "redistimeseries-host", "localhost:6379", "The host:port for Redis connection")
 	flag.DurationVar(&redisDelay, "redis-delay", time.Millisecond*500, "Redis TS.ADD pipeline stagger at least that many milliseconds")
 	flag.IntVar(&redisBulk, "redis-bulk", 5000, "Redis bulk TS.ADD buffer")
-	flag.StringVar(&logConn, "connection-log", "standard", "Show per connection detailed log output - none, standard, detail")
+	flag.StringVar(&logConn, "connection-log", "detail", "Show per connection detailed log output - none, standard, detail")
 	flag.Parse()
 }
 
@@ -90,6 +100,7 @@ func handleServerConnection(c net.Conn, client rueidis.Client) {
 			log.Fatalf("Error while unmarshaling JSON. error = %v", err)
 		}
 		labels := make(map[string]string)
+		//labelsKeys := []string{"prefix", "hostname", "chart_context", "chart_id", "chart_type", "chart_family", "chart_name", "id", "name", "units"}
 		prefix := preProcessAndAddLabel(rcv, "prefix", reg, labels)
 		hostname := preProcessAndAddLabel(rcv, "hostname", reg, labels)
 		_ = preProcessAndAddLabel(rcv, "chart_context", reg, labels)
@@ -108,8 +119,8 @@ func handleServerConnection(c net.Conn, client rueidis.Client) {
 		keyName := prefix + ":" + hostname + ":" + chart_family + ":" + chart_name + ":" + metric_name
 		//keyLabels := rueidis.Incomplete
 		addCmd := client.B().TsAdd().Key(keyName).Timestamp(timestamp).Value(value).Labels()
-		for prefix, label := range labels {
-			addCmd.Labels(prefix, label)
+		for key, label := range labels {
+			addCmd.Labels(key, label)
 		}
 		//addCmd.Build()
 		cmds = append(cmds, addCmd.Build())
