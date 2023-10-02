@@ -117,6 +117,8 @@ func handleServerConnection(c net.Conn, client rueidis.Client) {
 			log.Fatalf("Error while adding data points. error = %v", err)
 		}
 		showLog(p, hostname, rem, delay, t1, string(line))
+		p = 0
+		delay = time.Now()
 		//addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
 		//rtsLabels := make(rueidis.Commands, 0, 10)
 		//addCmd := client.Do(context.Background(), client.B().TsAdd().Key(keyName).Timestamp(string(timestamp)).Value(value).Labels().Labels("prefix", labels["prefix"]).)
