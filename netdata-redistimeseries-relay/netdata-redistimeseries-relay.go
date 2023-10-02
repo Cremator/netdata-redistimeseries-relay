@@ -37,7 +37,7 @@ func init() {
 	flag.StringVar(&listenAddress, "listen-address", "127.0.0.1:8080", "The host:port for listening for JSON inputs")
 	flag.StringVar(&redisTimeSeriesHost, "redistimeseries-host", "localhost:6379", "The host:port for Redis connection")
 	flag.DurationVar(&redisDelay, "redis-delay", time.Millisecond*500, "Redis TS.ADD pipeline stagger at least that many milliseconds")
-	flag.IntVar(&redisBulk, "redis-delay", 5000, "Redis TS.ADD pipeline stagger at least that many milliseconds")
+	flag.IntVar(&redisBulk, "redis-bulk", 5000, "Redis TS.ADD pipeline stagger at least that many milliseconds")
 	flag.StringVar(&logConn, "connection-log", "standard", "Show per connection detailed log output - none, standard, detail")
 	flag.Parse()
 }
