@@ -122,7 +122,7 @@ func handleServerConnection(c net.Conn, client rueidis.Client) {
 				}
 			}
 			showLog(l1, hostname, rem, delay, t1, string(line))
-			//p.Reset()
+			cmds = nil
 			delay = time.Now()
 		}
 		//addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
