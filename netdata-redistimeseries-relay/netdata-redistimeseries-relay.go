@@ -86,16 +86,16 @@ func handleServerConnection(c net.Conn, client rueidis.Client) {
 			log.Fatalf("Error while unmarshaling JSON. error = %v", err)
 		}
 		labels := make(map[string]string)
-		prefix, labels := preProcessAndAddLabel(rcv, "prefix", reg, labels)
-		hostname, labels := preProcessAndAddLabel(rcv, "hostname", reg, labels)
-		_, labels = preProcessAndAddLabel(rcv, "chart_context", reg, labels)
-		_, labels = preProcessAndAddLabel(rcv, "chart_id", reg, labels)
-		_, labels = preProcessAndAddLabel(rcv, "chart_type", reg, labels)
-		chart_family, labels := preProcessAndAddLabel(rcv, "chart_family", reg, labels)
-		chart_name, labels := preProcessAndAddLabel(rcv, "chart_name", reg, labels)
-		_, labels = preProcessAndAddLabel(rcv, "id", reg, labels)
-		metric_name, labels := preProcessAndAddLabel(rcv, "name", reg, labels)
-		_, labels = preProcessAndAddLabel(rcv, "units", reg, labels)
+		prefix := preProcessAndAddLabel(rcv, "prefix", reg, labels)
+		hostname := preProcessAndAddLabel(rcv, "hostname", reg, labels)
+		_ = preProcessAndAddLabel(rcv, "chart_context", reg, labels)
+		_ = preProcessAndAddLabel(rcv, "chart_id", reg, labels)
+		_ = preProcessAndAddLabel(rcv, "chart_type", reg, labels)
+		chart_family := preProcessAndAddLabel(rcv, "chart_family", reg, labels)
+		chart_name := preProcessAndAddLabel(rcv, "chart_name", reg, labels)
+		_ = preProcessAndAddLabel(rcv, "id", reg, labels)
+		metric_name := preProcessAndAddLabel(rcv, "name", reg, labels)
+		_ = preProcessAndAddLabel(rcv, "units", reg, labels)
 
 		value := rcv["value"].(float64)
 		timestamp := rcv["timestamp"].(string) + "000"
@@ -129,15 +129,14 @@ func handleServerConnection(c net.Conn, client rueidis.Client) {
 	}
 }
 
-func preProcessAndAddLabel(rcv map[string]interface{}, key string, reg *regexp.Regexp, labels map[string]string) (value string, labelsOut map[string]string) {
-	labelsOut = labels
+func preProcessAndAddLabel(rcv map[string]interface{}, key string, reg *regexp.Regexp, labels map[string]string) (value string) {
 	if rcv[key] != nil {
 		value = reg.ReplaceAllString(rcv[key].(string), "")
 		if len(value) > 0 {
 			// if len(labelsOut) == 0 {
 			// 	labelsOut = append(labelsOut, "LABELS")
 			// }
-			labelsOut[key] = value
+			labels[key] = value
 		}
 	}
 	return
