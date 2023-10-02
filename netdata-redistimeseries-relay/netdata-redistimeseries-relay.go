@@ -35,7 +35,7 @@ var (
 func init() {
 	flag.StringVar(&listenAddress, "listen-address", "127.0.0.1:8080", "The host:port for listening for JSON inputs")
 	flag.StringVar(&redisTimeSeriesHost, "redistimeseries-host", "localhost:6379", "The host:port for Redis connection")
-	flag.DurationVar(&redisDelay, "redis-delay", time.Millisecond*500, "Redis TS.ADD pipeline stagger at least that many milliseconds")
+	flag.DurationVar(&redisDelay, "redis-delay", time.Microsecond*500, "Redis TS.ADD pipeline stagger at least that many milliseconds")
 	flag.StringVar(&logConn, "connection-log", "standard", "Show per connection detailed log output - none, standard, detail")
 	flag.Parse()
 }
@@ -46,7 +46,7 @@ func server() {
 	// if err != nil {
 	// 	log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	// }
-	rts, err := rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{redisTimeSeriesHost}, MaxFlushDelay: redisDelay, AlwaysPipelining: true})
+	rts, err := rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{redisTimeSeriesHost}, MaxFlushDelay: redisDelay})
 	if err != nil {
 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	}
