@@ -73,9 +73,9 @@ func handleServerConnection(c net.Conn, client rueidis.Client) {
 	defer client.Close()
 	reader := bufio.NewScanner(c)
 	var rcv map[string]interface{}
-	//rem := c.RemoteAddr().String()
-	//p := radix.NewPipeline()
-	//delay := time.Now()
+	rem := c.RemoteAddr().String()
+	p := 0
+	delay := time.Now()
 	reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
 	if err != nil {
 		log.Fatalf("Error while compiling regex. error = %v", err)
@@ -110,10 +110,13 @@ func handleServerConnection(c net.Conn, client rueidis.Client) {
 			addCmd.Labels(prefix, label)
 		}
 		//addCmd.Build()
+		t1 := time.Now()
+		p++
 		resp := client.Do(context.Background(), addCmd.Build())
 		if err := resp.Error(); err != nil {
 			log.Fatalf("Error while adding data points. error = %v", err)
 		}
+		showLog(p, hostname, rem, delay, t1, string(line))
 		//addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
 		//rtsLabels := make(rueidis.Commands, 0, 10)
 		//addCmd := client.Do(context.Background(), client.B().TsAdd().Key(keyName).Timestamp(string(timestamp)).Value(value).Labels().Labels("prefix", labels["prefix"]).)
@@ -144,15 +147,15 @@ func preProcessAndAddLabel(rcv map[string]interface{}, key string, reg *regexp.R
 	return
 }
 
-// func showLog(l1 int, host string, rem string, delay time.Time, t1 time.Time, detailed string) {
-// 	if logConn == "none" {
-// 		return
-// 	}
-// 	log.Printf("Processed %d entries, %d ms since last data connection from %s - %s...\n", l1, t1.Sub(delay).Milliseconds(), host, rem)
-// 	if logConn == "detailed" {
-// 		log.Printf("%s\n", detailed)
-// 	}
-// }
+func showLog(l1 int, host string, rem string, delay time.Time, t1 time.Time, detailed string) {
+	if logConn == "none" {
+		return
+	}
+	log.Printf("Processed %d entries, %d ms since last data connection from %s - %s...\n", l1, t1.Sub(delay).Milliseconds(), host, rem)
+	if logConn == "detailed" {
+		log.Printf("%s\n", detailed)
+	}
+}
 
 func main() {
 	log.Println("Starting netdata-redistimeseries-relay...")
