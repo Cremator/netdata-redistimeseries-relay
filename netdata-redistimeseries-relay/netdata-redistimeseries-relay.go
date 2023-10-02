@@ -171,7 +171,7 @@ func showLog(l1 int, host string, rem string, delay time.Time, t1 time.Time, det
 		return
 	}
 	log.Printf("Processed %d entries, %d ms since last data connection from %s - %s...\n", l1, t1.Sub(delay).Milliseconds(), host, rem)
-	if logConn == "detailed" {
+	if logConn == "detail" {
 		log.Printf("%s\n", detailed)
 	}
 }
