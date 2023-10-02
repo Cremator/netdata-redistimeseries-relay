@@ -85,7 +85,7 @@ func handleServerConnection(c net.Conn, client rueidis.Client) {
 		if err != nil {
 			log.Fatalf("Error while unmarshaling JSON. error = %v", err)
 		}
-		var labels map[string]string = nil
+		labels := make(map[string]string)
 		prefix, labels := preProcessAndAddLabel(rcv, "prefix", reg, labels)
 		hostname, labels := preProcessAndAddLabel(rcv, "hostname", reg, labels)
 		_, labels = preProcessAndAddLabel(rcv, "chart_context", reg, labels)
