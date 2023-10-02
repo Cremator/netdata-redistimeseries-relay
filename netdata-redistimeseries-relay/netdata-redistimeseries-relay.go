@@ -166,13 +166,13 @@ func preProcessAndAddLabel(rcv map[string]interface{}, key string, reg *regexp.R
 	return
 }
 
-func showLog(l1 int, host string, rem string, delay time.Time, t1 time.Time, detailed string) {
+func showLog(l1 int, host string, rem string, delay time.Time, t1 time.Time, line string) {
 	if logConn == "none" {
 		return
 	}
 	log.Printf("Processed %d entries, %d ms since last data connection from %s - %s...\n", l1, t1.Sub(delay).Milliseconds(), host, rem)
 	if logConn == "detail" {
-		log.Printf("%s\n", detailed)
+		log.Printf("Details: %s\n", line)
 	}
 }
 
