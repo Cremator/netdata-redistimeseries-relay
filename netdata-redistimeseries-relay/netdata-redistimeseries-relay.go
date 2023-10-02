@@ -7,10 +7,12 @@ import (
 	"os"
 	"os/signal"
 	"regexp"
+	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/goccy/go-json"
+
 	//"github.com/mediocregopher/radix/v4"
 	"github.com/redis/rueidis"
 	//"github.com/redis/rueidis/internal/cmds"
@@ -98,7 +100,7 @@ func handleServerConnection(c net.Conn, client rueidis.Client) {
 		_ = preProcessAndAddLabel(rcv, "units", reg, labels)
 
 		value := rcv["value"].(float64)
-		timestamp := rcv["timestamp"].(string) + "000"
+		timestamp := strconv.FormatInt(int64(rcv["timestamp"].(float64)*1000.0), 10)
 
 		//Metrics are sent to the database server as prefix:hostname:chart_family:chart_name:metric_name.
 		keyName := prefix + ":" + hostname + ":" + chart_family + ":" + chart_name + ":" + metric_name
