@@ -104,8 +104,8 @@ func LookupEnvOrString(key string, defaultVal string) string {
 func init() {
 	flag.StringVar(&listenAddress, "listen-address", LookupEnvOrString("LISTEN_ADDRESS", "127.0.0.1:8080"), "The host:port for listening for JSON inputs")
 	flag.StringVar(&redisTimeSeriesHost, "redistimeseries-host", LookupEnvOrString("REDIS_ADDRESS", "localhost:6379"), "The host:port for Redis connection")
-	flag.DurationVar(&redisDelay, "redis-delay", LookupEnvOrDuration("REDIS_DELAY", time.Millisecond*500), "Redis TS.ADD pipeline stagger at least that many milliseconds")
-	flag.IntVar(&redisBatch, "redis-batch", LookupEnvOrInt("REDIS_BATCH", 5000), "Redis batch TS.ADDs buffer")
+	flag.DurationVar(&redisDelay, "redis-delay", LookupEnvOrDuration("REDIS_DELAY", time.Millisecond*500), "Delay and accumulate Redis TS.ADDs duration")
+	flag.IntVar(&redisBatch, "redis-batch", LookupEnvOrInt("REDIS_BATCH", 5000), "Redis TS.ADDs max batch size")
 	flag.StringVar(&logConn, "connection-log", LookupEnvOrString("CONN_LOG", "standard"), "Show per connection detailed log - none, standard, detail")
 	flag.Parse()
 }
@@ -122,6 +122,7 @@ func server() {
 		return
 	}
 	log.Printf("Listening at %s for netdata JSON inputs, and pushing RedisTimeSeries datapoints to %s...\n", listenAddress, redisTimeSeriesHost)
+	log.Printf("Configured redis delay is %s, netdata JSON connection batch size is %d, and logs %s...\n", redisDelay, redisBatch, logConn)
 	for {
 		// accept a connection
 		c, err := s.Accept()
@@ -140,7 +141,7 @@ func handleServerConnection(c net.Conn, r rueidis.Client) {
 	tnow := time.Now()
 	reader := bufio.NewScanner(c)
 	reader.Split(bufio.ScanLines)
-	var rcv datapoint
+	rcv := datapoint{}
 	rem := c.RemoteAddr().String()
 	cmds := make(rueidis.Commands, 0, redisBatch)
 
@@ -153,17 +154,17 @@ func handleServerConnection(c net.Conn, r rueidis.Client) {
 
 		value := rcv.Value
 		timestamp := strconv.FormatInt(rcv.Timestamp*1000, 10)
-
+		labels := rcv.Labels()
 		//Metrics are sent to the database server as prefix:hostname:chart_family:chart_name:metric_name.
-		keyName := rcv.Prefix + ":" + rcv.Hostname + ":" + rcv.Chart_Family + ":" + rcv.Chart_Name + ":" + rcv.Name
+		keyName := labels["prefix"] + ":" + labels["hostname"] + ":" + labels["chart_family"] + ":" + labels["chart_name"] + ":" + labels["name"]
 		addCmd := r.B().TsAdd().Key(keyName).Timestamp(timestamp).Value(value).Labels()
-		for key, label := range rcv.Labels() {
+		for key, label := range labels {
 			addCmd.Labels(key, label)
 		}
 		cmds = append(cmds, addCmd.Build())
 		t1 := time.Now()
 		l1 := len(cmds)
-		if (l1 > 0 && t1.After(tnow.Add(redisDelay))) || l1 > int(float64(redisBatch)/1.05) {
+		if (l1 > 0 && t1.After(tnow.Add(redisDelay))) || l1 >= redisBatch-1 {
 			for _, resp := range r.DoMulti(context.Background(), cmds...) {
 				if err := resp.Error(); err != nil {
 					log.Fatalf("Error while adding data points. error = %v", err)
@@ -180,7 +181,7 @@ func showLog(l1 int, host string, rem string, delay time.Time, t1 time.Time, lin
 	if logConn == "none" {
 		return
 	}
-	log.Printf("Processed %d entries, %d ms since last data connection from %s - %s...\n", l1, t1.Sub(delay).Milliseconds(), host, rem)
+	log.Printf("Processed %d entries, %s since last data processing from %s(%s)\n", l1, t1.Sub(delay), host, rem)
 	if logConn == "detail" {
 		log.Printf("Details: %s\n", line)
 	}
