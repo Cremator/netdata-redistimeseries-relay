@@ -66,32 +66,57 @@ var (
 	redisTimeSeriesHost string
 	redisDelay          time.Duration
 	logConn             string
-	redisBulk           int
+	redisBatch          int
 
 // Ctx                 = context.Background()
 )
 
+func LookupEnvOrInt(key string, defaultVal int) int {
+	if val, ok := os.LookupEnv(key); ok {
+		v, err := strconv.Atoi(val)
+		if err != nil {
+			log.Fatalf("LookupEnvOrInt[%s]: %v", key, err)
+		}
+		return v
+	}
+	return defaultVal
+}
+
+func LookupEnvOrDuration(key string, defaultVal time.Duration) time.Duration {
+	if val, ok := os.LookupEnv(key); ok {
+		v, err := time.ParseDuration(val)
+		if err != nil {
+			log.Fatalf("LookupEnvOrDuration[%s]: %v", key, err)
+		}
+		return v
+	}
+	return defaultVal
+}
+
+func LookupEnvOrString(key string, defaultVal string) string {
+	if val, ok := os.LookupEnv(key); ok {
+		return val
+	}
+	return defaultVal
+}
+
 // Options:
 func init() {
-	flag.StringVar(&listenAddress, "listen-address", "127.0.0.1:8080", "The host:port for listening for JSON inputs")
-	flag.StringVar(&redisTimeSeriesHost, "redistimeseries-host", "localhost:6379", "The host:port for Redis connection")
-	flag.DurationVar(&redisDelay, "redis-delay", time.Millisecond*500, "Redis TS.ADD pipeline stagger at least that many milliseconds")
-	flag.IntVar(&redisBulk, "redis-bulk", 5000, "Redis bulk TS.ADD buffer")
-	flag.StringVar(&logConn, "connection-log", "detail", "Show per connection detailed log output - none, standard, detail")
+	flag.StringVar(&listenAddress, "listen-address", LookupEnvOrString("LISTEN_ADDRESS", "127.0.0.1:8080"), "The host:port for listening for JSON inputs")
+	flag.StringVar(&redisTimeSeriesHost, "redistimeseries-host", LookupEnvOrString("REDIS_ADDRESS", "localhost:6379"), "The host:port for Redis connection")
+	flag.DurationVar(&redisDelay, "redis-delay", LookupEnvOrDuration("REDIS_DELAY", time.Millisecond*500), "Redis TS.ADD pipeline stagger at least that many milliseconds")
+	flag.IntVar(&redisBatch, "redis-batch", LookupEnvOrInt("REDIS_BATCH", 5000), "Redis batch TS.ADDs buffer")
+	flag.StringVar(&logConn, "connection-log", LookupEnvOrString("CONN_LOG", "standard"), "Show per connection detailed log - none, standard, detail")
 	flag.Parse()
 }
 
 func server() {
-	// listen on a port
-	// vanillaClient, err := (radix.PoolConfig{}).New(Ctx, "tcp", redisTimeSeriesHost) // or any other client
-	// if err != nil {
-	// 	log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
-	// }
-	rts, err := rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{redisTimeSeriesHost}, MaxFlushDelay: redisDelay})
+	//r, err := rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{redisTimeSeriesHost}, MaxFlushDelay: redisDelay})
+	r, err := rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{redisTimeSeriesHost}})
 	if err != nil {
 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	}
-	ln, err := net.Listen("tcp", listenAddress)
+	s, err := net.Listen("tcp", listenAddress)
 	if err != nil {
 		log.Fatalf("Error while trying to listen to %s. error = %v", listenAddress, err)
 		return
@@ -99,29 +124,25 @@ func server() {
 	log.Printf("Listening at %s for netdata JSON inputs, and pushing RedisTimeSeries datapoints to %s...\n", listenAddress, redisTimeSeriesHost)
 	for {
 		// accept a connection
-		c, err := ln.Accept()
+		c, err := s.Accept()
 		if err != nil {
 			log.Println(err)
 			continue
 		}
 		// handle the connection
-		go handleServerConnection(c, rts)
+		go handleServerConnection(c, r)
 	}
 }
 
-func handleServerConnection(c net.Conn, client rueidis.Client) {
+func handleServerConnection(c net.Conn, r rueidis.Client) {
 	defer c.Close()
-	defer client.Close()
+	defer r.Close()
+	tnow := time.Now()
 	reader := bufio.NewScanner(c)
-	//var rcv map[string]interface{}
+	reader.Split(bufio.ScanLines)
 	var rcv datapoint
 	rem := c.RemoteAddr().String()
-	cmds := make(rueidis.Commands, 0, redisBulk)
-	delay := time.Now()
-	// reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
-	// if err != nil {
-	// 	log.Fatalf("Error while compiling regex. error = %v", err)
-	// }
+	cmds := make(rueidis.Commands, 0, redisBatch)
 
 	for reader.Scan() {
 		line := reader.Bytes()
@@ -129,85 +150,31 @@ func handleServerConnection(c net.Conn, client rueidis.Client) {
 		if err != nil {
 			log.Fatalf("Error while unmarshaling JSON. error = %v", err)
 		}
-		//labels := make(map[string]string)
-		//labelsKeys := []string{"prefix", "hostname", "chart_context", "chart_id", "chart_type", "chart_family", "chart_name", "id", "name", "units"}
-		// prefix := preProcessAndAddLabel(rcv, "prefix", reg, labels)
-		// hostname := preProcessAndAddLabel(rcv, "hostname", reg, labels)
-		// _ = preProcessAndAddLabel(rcv, "chart_context", reg, labels)
-		// _ = preProcessAndAddLabel(rcv, "chart_id", reg, labels)
-		// _ = preProcessAndAddLabel(rcv, "chart_type", reg, labels)
-		// chart_family := preProcessAndAddLabel(rcv, "chart_family", reg, labels)
-		// chart_name := preProcessAndAddLabel(rcv, "chart_name", reg, labels)
-		// _ = preProcessAndAddLabel(rcv, "id", reg, labels)
-		// metric_name := preProcessAndAddLabel(rcv, "name", reg, labels)
-		// _ = preProcessAndAddLabel(rcv, "units", reg, labels)
-		// err = preProcessStringsRegEx(rcv, reg)
-		// if err != nil {
-		// 	log.Fatalf("Error while pre processing JSON. error = %v", err)
-		// }
+
 		value := rcv.Value
-		timestamp := strconv.FormatInt(int64(rcv.Timestamp*1000.0), 10)
+		timestamp := strconv.FormatInt(rcv.Timestamp*1000, 10)
 
 		//Metrics are sent to the database server as prefix:hostname:chart_family:chart_name:metric_name.
 		keyName := rcv.Prefix + ":" + rcv.Hostname + ":" + rcv.Chart_Family + ":" + rcv.Chart_Name + ":" + rcv.Name
-		//keyLabels := rueidis.Incomplete
-		addCmd := client.B().TsAdd().Key(keyName).Timestamp(timestamp).Value(value).Labels()
+		addCmd := r.B().TsAdd().Key(keyName).Timestamp(timestamp).Value(value).Labels()
 		for key, label := range rcv.Labels() {
 			addCmd.Labels(key, label)
 		}
-		//addCmd.Build()
 		cmds = append(cmds, addCmd.Build())
 		t1 := time.Now()
 		l1 := len(cmds)
-		if l1 > 0 && t1.After(delay.Add(redisDelay)) {
-			for _, resp := range client.DoMulti(context.Background(), cmds...) {
+		if (l1 > 0 && t1.After(tnow.Add(redisDelay))) || l1 > int(float64(redisBatch)/1.05) {
+			for _, resp := range r.DoMulti(context.Background(), cmds...) {
 				if err := resp.Error(); err != nil {
 					log.Fatalf("Error while adding data points. error = %v", err)
 				}
 			}
-			showLog(l1, rcv.Hostname, rem, delay, t1, string(line))
+			showLog(l1, rcv.Hostname, rem, tnow, t1, string(line))
 			cmds = nil
-			delay = time.Now()
+			tnow = time.Now()
 		}
-		//addCmd := radix.FlatCmd(nil, "TS.ADD", keyName, timestamp, value, labels)
-		//rtsLabels := make(rueidis.Commands, 0, 10)
-		//addCmd := client.Do(context.Background(), client.B().TsAdd().Key(keyName).Timestamp(string(timestamp)).Value(value).Labels().Labels("prefix", labels["prefix"]).)
-		//p.Append(addCmd)
-		//t1 := time.Now()
-		//l1 := len(p.Properties().Keys)
-		// if l1 > 0 && t1.After(delay.Add(redisDelay)) {
-		// 	if err := client.Do(Ctx, p); err != nil {
-		// 		log.Fatalf("Error while adding data points. error = %v", err)
-		// 	}
-		// 	showLog(l1, hostname, rem, delay, t1, string(line))
-		// 	p.Reset()
-		// 	delay = time.Now()
-		// }
 	}
 }
-
-// func preProcessAndAddLabel(rcv map[string]interface{}, key string, reg *regexp.Regexp, labels map[string]string) (value string) {
-// 	if rcv[key] != nil {
-// 		value = reg.ReplaceAllString(rcv[key].(string), "")
-// 		if len(value) > 0 {
-// 			// if len(labelsOut) == 0 {
-// 			// 	labelsOut = append(labelsOut, "LABELS")
-// 			// }
-// 			labels[key] = value
-// 		}
-// 	}
-// 	return
-// }
-
-// func preProcessStringsRegEx(rcv datapoint, reg *regexp.Regexp) (err error) {
-// 	for label, value := range rcv.Labels {
-// 		if value != "" {
-// 			rcv.Labels[label] = reg.ReplaceAllString(value, "")
-// 		}
-// 	}
-
-// 	return err
-// }
 
 func showLog(l1 int, host string, rem string, delay time.Time, t1 time.Time, line string) {
 	if logConn == "none" {
