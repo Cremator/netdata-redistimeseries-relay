@@ -12,29 +12,11 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-
-	//"github.com/mediocregopher/radix/v4"
 	"github.com/redis/rueidis"
-	//"github.com/redis/rueidis/internal/cmds"
 
 	"context"
 	"net"
 )
-
-// {
-// 	"prefix":"netdata",
-// 	"hostname":"xcp-bld-006",
-// 	"chart_id":"disk_qops.dm-3",
-// 	"chart_name":"disk_qops.vg_xenstorage__547a9c93__686a__ea48__3be8__e17dfbd6aa9f_vhd__56bc486a__0177__49a0__82f2__7749361408ef",
-// 	"chart_family":"vg_xenstorage--547a9c93--686a--ea48--3be8--e17dfbd6aa9f-vhd--56bc486a--0177--49a0--82f2--7749361408ef",
-// 	"chart_context": "disk.qops",
-// 	"chart_type":"disk_qops",
-// 	"units": "operations",
-// 	"id":"operations",
-// 	"name":"operations",
-// 	"value":0.0000000,
-// 	"timestamp": 1696249227
-// }
 
 type datapoint struct {
 	Prefix        string  `json:"prefix"`
@@ -67,8 +49,6 @@ var (
 	redisDelay          time.Duration
 	logConn             string
 	redisBatch          int
-
-// Ctx                 = context.Background()
 )
 
 func LookupEnvOrInt(key string, defaultVal int) int {
