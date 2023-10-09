@@ -6,5 +6,3 @@ require (
 	github.com/goccy/go-json v0.10.2
 	github.com/redis/rueidis v1.0.19
 )
-
-require golang.org/x/sys v0.10.0 // indirect
