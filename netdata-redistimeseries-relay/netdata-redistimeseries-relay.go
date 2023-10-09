@@ -108,7 +108,10 @@ func init() {
 
 func rtsClient() rueidis.Client {
 	//r, err := rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{redisTimeSeriesHost}, MaxFlushDelay: redisDelay})
-	r, err := rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{redisTimeSeriesHost}})
+	r, err := rueidis.NewClient(rueidis.ClientOption{
+		InitAddress:   []string{redisTimeSeriesHost},
+		MaxFlushDelay: 50 * time.Microsecond,
+	})
 	if err != nil {
 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	}
