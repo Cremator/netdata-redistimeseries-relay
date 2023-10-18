@@ -85,3 +85,36 @@ $ netdata-redistimeseries-relay --redistimeseries-host localhost:6379
 Starting netdata-redistimeseries-relay...
 Listening at 127.0.0.1:8080 for JSON inputs, and pushing RedisTimeSeries datapoints to localhost:6379...
 ```
+## docker-compose snippet
+
+```
+rtsrelay:
+    image: golang:1.20.5-bullseye
+    container_name: rtsrelay
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      - TZ=Europe/Sofia
+      - LISTEN_ADDRESS=:8081
+      - REDIS_ADDRESS=redis-stack:6379
+      - REDIS_DELAY=500ms
+      - REDIS_BATCH=5000
+      - CONN_LOG=standard
+    command:
+      - /bin/bash
+      - -c
+      - |
+        cd src&&\
+        if [[ ! -f "netdata-redistimeseries-relay" ]]; then
+          go mod init netdata-redistimeseries-relay&&\
+          wget https://raw.githubusercontent.com/Cremator/netdata-redistimeseries-relay/master/netdata-redistimeseries-relay/netdata-redistimeseries-relay.go&&\
+          mv netdata-redistimeseries-relay.go main.go&&\
+          go mod tidy&&\
+          go build
+        fi
+        ./netdata-redistimeseries-relay
+    ports:
+      - 8081:8081
+    depends_on:
+      - redis-stack
+```
