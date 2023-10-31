@@ -147,6 +147,7 @@ func server() {
 func handleServerConnection(c net.Conn, r rueidis.Client) {
 	defer c.Close()
 	defer r.Close()
+	c.SetDeadline(time.Now().Add(redisDelay))
 	//tnow := time.Now()
 	reader := bufio.NewScanner(c)
 	reader.Split(bufio.ScanLines)
