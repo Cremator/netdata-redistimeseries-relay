@@ -102,14 +102,14 @@ func (r *rediscmds) InitCmds() *rediscmds {
 	return r
 }
 
-func (r *rediscmds) Log() {
-	if len(r.Commands) == 0 {
-		r.Commands = make(rueidis.Commands, 0, redisBatch)
-		r.Limit = 0
-	} else {
-		log.Fatalf("Error while creating empty commands slice %v. error length = %d", r.Commands, len(r.Commands))
-	}
-}
+// func (r *rediscmds) Log() {
+// 	if len(r.Commands) == 0 {
+// 		r.Commands = make(rueidis.Commands, 0, redisBatch)
+// 		r.Limit = 0
+// 	} else {
+// 		log.Fatalf("Error while creating empty commands slice %v. error length = %d", r.Commands, len(r.Commands))
+// 	}
+// }
 
 func (r *rediscmds) Append(d *datapoint) *rediscmds {
 	if r.Limit >= redisBatch || (time.Since(r.StartTime) >= r.Delay && r.Limit > 0) {
