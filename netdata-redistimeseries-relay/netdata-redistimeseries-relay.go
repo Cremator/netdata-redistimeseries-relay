@@ -95,13 +95,9 @@ func (r *rediscmds) Flush() *rediscmds {
 }
 
 func (r *rediscmds) init() *rediscmds {
-	if len(r.Commands) == 0 {
-		r.Commands = make(rueidis.Commands, 0, redisBatch)
-		r.Limit = 0
-		r.StartTime = time.Now()
-	} else {
-		log.Fatalf("Error while creating empty commands slice %v. error length = %d", r.Commands, len(r.Commands))
-	}
+	r.Commands = make(rueidis.Commands, 0, redisBatch)
+	r.Limit = 0
+	r.StartTime = time.Now()
 	return r
 }
 
