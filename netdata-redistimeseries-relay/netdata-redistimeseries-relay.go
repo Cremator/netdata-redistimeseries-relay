@@ -78,7 +78,7 @@ func (r *rediscmds) Connect() *rediscmds {
 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	}
 	r.Client = redis
-	r.InitCmds()
+	r.init()
 	return r
 }
 
@@ -88,11 +88,13 @@ func (r *rediscmds) Flush() *rediscmds {
 			log.Fatalf("Error while adding data points. error = %v", err)
 		}
 	}
-	log.Printf("Processed %d entries, accumulated over %s\n", r.Limit, time.Since(r.StartTime))
-	return r.InitCmds()
+	if logConn != "none" {
+		log.Printf("Processed %d entries, accumulated over %s\n", r.Limit, time.Since(r.StartTime))
+	}
+	return r.init()
 }
 
-func (r *rediscmds) InitCmds() *rediscmds {
+func (r *rediscmds) init() *rediscmds {
 	if len(r.Commands) == 0 {
 		r.Commands = make(rueidis.Commands, 0, redisBatch)
 		r.Limit = 0
@@ -114,7 +116,7 @@ func (r *rediscmds) InitCmds() *rediscmds {
 
 func (r *rediscmds) Append(d *datapoint) *rediscmds {
 	if r.Limit >= redisBatch || (time.Since(r.StartTime) >= r.Delay && r.Limit > 0) {
-		r.Flush().InitCmds()
+		r.Flush().init()
 		return r
 	}
 	addCmd := r.Client.B().TsAdd().Key(d.Keyname).Timestamp(d.Timestamp_Str).Value(d.Value).Labels()
@@ -193,7 +195,7 @@ func server() {
 	// 	log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	// }
 	r := rediscmds{}
-	r.Connect().InitCmds()
+	r.Connect().init()
 	s, err := net.Listen("tcp", listenAddress)
 	if err != nil {
 		log.Fatalf("Error while trying to listen to %s. error = %v", listenAddress, err)
@@ -224,7 +226,9 @@ func handleServerConnection(r rediscmds) {
 
 	//rem := c.RemoteAddr().String()
 	//cmds := make(rueidis.Commands, 0, redisBatch)
-
+	if logConn == "detail" {
+		log.Printf("Connection from %s, received %d bytes\n", r.Server.RemoteAddr(), len(reader.Bytes()))
+	}
 	for reader.Scan() {
 		line := reader.Bytes()
 		rcv := datapoint{}
