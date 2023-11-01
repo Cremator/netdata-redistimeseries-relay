@@ -36,6 +36,8 @@ type datapoint struct {
 	Keyname       string
 }
 
+type datapointJSON datapoint
+
 type rediscmds struct {
 	Commands  rueidis.Commands
 	StartTime time.Time
@@ -44,28 +46,42 @@ type rediscmds struct {
 	Limit     int
 }
 
-func (d *datapoint) Prepare() *datapoint {
-	reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
-	if err != nil {
-		log.Fatalf("Error while compiling regex. error = %v", err)
-	}
-	d.Labels = map[string]string{"prefix": reg.ReplaceAllString(d.Prefix, ""), "hostname": reg.ReplaceAllString(d.Hostname, ""), "chart_id": reg.ReplaceAllString(d.Chart_ID, ""), "chart_name": reg.ReplaceAllString(d.Chart_Name, ""), "chart_family": reg.ReplaceAllString(d.Chart_Family, ""), "chart_context": reg.ReplaceAllString(d.Chart_Context, ""), "chart_type": reg.ReplaceAllString(d.Chart_Type, ""), "units": reg.ReplaceAllString(d.Units, ""), "id": reg.ReplaceAllString(d.ID, ""), "name": reg.ReplaceAllString(d.Name, "")}
-	d.Keyname = d.Labels["prefix"] + ":" + d.Labels["hostname"] + ":" + d.Labels["chart_family"] + ":" + d.Labels["chart_name"] + ":" + d.Labels["name"]
-	d.Timestamp_Str = strconv.FormatInt(d.Timestamp*1000, 10)
-	return d
-}
+// func (d *datapoint) Prepare() *datapoint {
+// 	reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
+// 	if err != nil {
+// 		log.Fatalf("Error while compiling regex. error = %v", err)
+// 	}
+// 	d.Labels = map[string]string{"prefix": reg.ReplaceAllString(d.Prefix, ""), "hostname": reg.ReplaceAllString(d.Hostname, ""), "chart_id": reg.ReplaceAllString(d.Chart_ID, ""), "chart_name": reg.ReplaceAllString(d.Chart_Name, ""), "chart_family": reg.ReplaceAllString(d.Chart_Family, ""), "chart_context": reg.ReplaceAllString(d.Chart_Context, ""), "chart_type": reg.ReplaceAllString(d.Chart_Type, ""), "units": reg.ReplaceAllString(d.Units, ""), "id": reg.ReplaceAllString(d.ID, ""), "name": reg.ReplaceAllString(d.Name, "")}
+// 	d.Keyname = d.Labels["prefix"] + ":" + d.Labels["hostname"] + ":" + d.Labels["chart_family"] + ":" + d.Labels["chart_name"] + ":" + d.Labels["name"]
+// 	d.Timestamp_Str = strconv.FormatInt(d.Timestamp*1000, 10)
+// 	return d
+// }
 
-func (d *datapoint) Insert(r rueidis.Client) error {
-	rCmd := r.B().TsAdd().Key(d.Keyname).Timestamp(d.Timestamp_Str).Value(d.Value).Labels()
-	for key, label := range d.Labels {
-		rCmd.Labels(key, label)
-	}
-	resp := r.Do(context.Background(), rCmd.Build())
-	if err := resp.Error(); err != nil {
+func (j *datapointJSON) UnmarshalJSON(b []byte) error {
+	if err := json.Unmarshal(b, (*datapoint)(j)); err != nil {
 		return err
 	}
+	reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
+	if err != nil {
+		return err
+	}
+	j.Labels = map[string]string{"prefix": reg.ReplaceAllString(j.Prefix, ""), "hostname": reg.ReplaceAllString(j.Hostname, ""), "chart_id": reg.ReplaceAllString(j.Chart_ID, ""), "chart_name": reg.ReplaceAllString(j.Chart_Name, ""), "chart_family": reg.ReplaceAllString(j.Chart_Family, ""), "chart_context": reg.ReplaceAllString(j.Chart_Context, ""), "chart_type": reg.ReplaceAllString(j.Chart_Type, ""), "units": reg.ReplaceAllString(j.Units, ""), "id": reg.ReplaceAllString(j.ID, ""), "name": reg.ReplaceAllString(j.Name, "")}
+	j.Keyname = j.Labels["prefix"] + ":" + j.Labels["hostname"] + ":" + j.Labels["chart_family"] + ":" + j.Labels["chart_name"] + ":" + j.Labels["name"]
+	j.Timestamp_Str = strconv.FormatInt(j.Timestamp*1000, 10)
 	return nil
 }
+
+// func (d *datapoint) Insert(r rueidis.Client) error {
+// 	rCmd := r.B().TsAdd().Key(d.Keyname).Timestamp(d.Timestamp_Str).Value(d.Value).Labels()
+// 	for key, label := range d.Labels {
+// 		rCmd.Labels(key, label)
+// 	}
+// 	resp := r.Do(context.Background(), rCmd.Build())
+// 	if err := resp.Error(); err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }
 
 func (r *rediscmds) Connect() *rediscmds {
 	redis, err := rueidis.NewClient(rueidis.ClientOption{
@@ -226,13 +242,13 @@ func handleServerConnection(r *rediscmds) {
 	}
 	for reader.Scan() {
 		line := reader.Bytes()
-		rcv := datapoint{}
+		rcv := &datapointJSON{}
 		err := json.Unmarshal(line, &rcv)
 		if err != nil {
 			log.Fatalf("Error while unmarshaling JSON. error = %v", err)
 		}
-		rcv.Prepare()
-		r.Append(&rcv)
+		//rcv.Prepare()
+		r.Append((*datapoint)(rcv))
 		// value := rcv.Value
 		// timestamp := strconv.FormatInt(rcv.Timestamp*1000, 10)
 		// labels := rcv.Labels()
