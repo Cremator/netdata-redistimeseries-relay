@@ -71,7 +71,8 @@ func (d *datapoint) Insert(r rueidis.Client) error {
 func (r *rediscmds) Connect() *rediscmds {
 	redis, err := rueidis.NewClient(rueidis.ClientOption{
 		InitAddress:   []string{redisTimeSeriesHost},
-		MaxFlushDelay: 50 * time.Microsecond,
+		MaxFlushDelay: 20 * time.Microsecond,
+		DisableCache:  true,
 	})
 	if err != nil {
 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
@@ -231,7 +232,8 @@ func handleServerConnection(r rediscmds) {
 		if err != nil {
 			log.Fatalf("Error while unmarshaling JSON. error = %v", err)
 		}
-		r.Append(&rcv)
+		//rcv.Prepare()
+		r.Append(rcv.Prepare())
 		// value := rcv.Value
 		// timestamp := strconv.FormatInt(rcv.Timestamp*1000, 10)
 		// labels := rcv.Labels()
