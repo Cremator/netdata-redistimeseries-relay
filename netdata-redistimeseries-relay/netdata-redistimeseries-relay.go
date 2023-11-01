@@ -42,7 +42,6 @@ type rediscmds struct {
 	Client    rueidis.Client
 	Server    net.Conn
 	Limit     int
-	Delay     time.Duration
 }
 
 func (d *datapoint) Prepare() *datapoint {
@@ -111,7 +110,7 @@ func (r *rediscmds) init() *rediscmds {
 // }
 
 func (r *rediscmds) Append(d *datapoint) *rediscmds {
-	if r.Limit >= redisBatch || (time.Since(r.StartTime) >= r.Delay && r.Limit > 0) {
+	if r.Limit >= redisBatch || (time.Since(r.StartTime) > redisDelay && r.Limit > 0) {
 		r.Flush().init()
 		return r
 	}
