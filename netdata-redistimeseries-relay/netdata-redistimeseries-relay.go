@@ -88,7 +88,7 @@ func (r *rediscmds) Flush() *rediscmds {
 		}
 	}
 	if logConn != "none" {
-		log.Printf("Processed %d entries, accumulated over %s\n", r.Limit, time.Since(r.StartTime))
+		log.Printf("Processed %d entries, %s since last flush.\n", r.Limit, time.Since(r.StartTime))
 	}
 	return r.init()
 }
@@ -207,11 +207,11 @@ func server() {
 		}
 		r.Server = c
 		// handle the connection
-		go handleServerConnection(r)
+		go handleServerConnection(&r)
 	}
 }
 
-func handleServerConnection(r rediscmds) {
+func handleServerConnection(r *rediscmds) {
 	defer r.Server.Close()
 	defer r.Client.Close()
 	//c.SetDeadline(time.Now().Add(redisDelay))
@@ -231,8 +231,8 @@ func handleServerConnection(r rediscmds) {
 		if err != nil {
 			log.Fatalf("Error while unmarshaling JSON. error = %v", err)
 		}
-		//rcv.Prepare()
-		r.Append(rcv.Prepare())
+		rcv.Prepare()
+		r.Append(&rcv)
 		// value := rcv.Value
 		// timestamp := strconv.FormatInt(rcv.Timestamp*1000, 10)
 		// labels := rcv.Labels()
