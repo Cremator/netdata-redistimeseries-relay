@@ -45,7 +45,7 @@ type rediscmds struct {
 	Client    rueidis.Client
 	Server    net.Conn
 	Limit     int
-	sync.RWMutex
+	sync.Mutex
 }
 
 // func (d *datapoint) Prepare() *datapoint {
@@ -102,7 +102,6 @@ func (r *rediscmds) Connect() *rediscmds {
 }
 
 func (r *rediscmds) Write() *rediscmds {
-	r.RLock()
 	for _, resp := range r.Client.DoMulti(context.Background(), r.Commands...) {
 		if err := resp.Error(); err != nil {
 			log.Fatalf("Error while adding data points. error = %v", err)
@@ -111,13 +110,10 @@ func (r *rediscmds) Write() *rediscmds {
 	if logConn != "none" {
 		log.Printf("Processed %d entries, %s since last flush.\n", r.Limit, time.Since(r.StartTime))
 	}
-	r.RUnlock()
 	return r.init()
 }
 
 func (r *rediscmds) init() *rediscmds {
-	r.Lock()
-	defer r.Unlock()
 	r.Commands = make(rueidis.Commands, 0, redisBatch)
 	r.Limit = 0
 	r.StartTime = time.Now()
@@ -134,7 +130,8 @@ func (r *rediscmds) init() *rediscmds {
 // }
 
 func (r *rediscmds) AddDatapoint(d *datapoint) *rediscmds {
-	r.RLock()
+	r.Lock()
+	defer r.Unlock()
 	if r.Limit >= redisBatch || (time.Since(r.StartTime) > redisDelay && r.Limit > 0) {
 		r.Write().init()
 		return r
@@ -143,9 +140,6 @@ func (r *rediscmds) AddDatapoint(d *datapoint) *rediscmds {
 	for key, label := range d.Labels {
 		addCmd.Labels(key, label)
 	}
-	r.RUnlock()
-	r.Lock()
-	defer r.Unlock()
 	r.Commands = append(r.Commands, addCmd.Build())
 	r.Limit++
 	return r
