@@ -103,7 +103,6 @@ func (r *rediscmds) Connect() *rediscmds {
 
 func (r *rediscmds) Write() *rediscmds {
 	r.RLock()
-	defer r.RUnlock()
 	for _, resp := range r.Client.DoMulti(context.Background(), r.Commands...) {
 		if err := resp.Error(); err != nil {
 			log.Fatalf("Error while adding data points. error = %v", err)
@@ -112,6 +111,7 @@ func (r *rediscmds) Write() *rediscmds {
 	if logConn != "none" {
 		log.Printf("Processed %d entries, %s since last flush.\n", r.Limit, time.Since(r.StartTime))
 	}
+	r.RUnlock()
 	return r.init()
 }
 
