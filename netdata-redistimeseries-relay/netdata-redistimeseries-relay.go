@@ -46,6 +46,7 @@ type rediscmds struct {
 	Server    net.Conn
 	Limit     int
 	Mutex     sync.Mutex
+	WG        sync.WaitGroup
 }
 
 // func (d *datapoint) Prepare() *datapoint {
@@ -129,6 +130,8 @@ func (r *rediscmds) init() *rediscmds {
 
 func (r *rediscmds) AddDatapoint(d *datapoint) *rediscmds {
 	r.Mutex.Lock()
+	defer r.Mutex.Unlock()
+	defer r.WG.Done()
 	if r.Limit >= redisBatch || (time.Since(r.StartTime) > redisDelay && r.Limit > 0) {
 		r.Write().init()
 		return r
@@ -139,7 +142,6 @@ func (r *rediscmds) AddDatapoint(d *datapoint) *rediscmds {
 	}
 	r.Commands = append(r.Commands, addCmd.Build())
 	r.Limit++
-	r.Mutex.Unlock()
 	return r
 }
 
@@ -252,7 +254,9 @@ func handleServerConnection(r *rediscmds) {
 			log.Fatalf("Error while unmarshaling JSON. error = %v", err)
 		}
 		//rcv.Prepare()
+		r.WG.Add(1)
 		r.AddDatapoint((*datapoint)(rcv))
+		r.WG.Wait()
 		// value := rcv.Value
 		// timestamp := strconv.FormatInt(rcv.Timestamp*1000, 10)
 		// labels := rcv.Labels()
