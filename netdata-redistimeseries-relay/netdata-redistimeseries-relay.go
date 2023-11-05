@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"regexp"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -44,6 +45,7 @@ type rediscmds struct {
 	Client    rueidis.Client
 	Server    net.Conn
 	Limit     int
+	sync.RWMutex
 }
 
 // func (d *datapoint) Prepare() *datapoint {
@@ -92,12 +94,16 @@ func (r *rediscmds) Connect() *rediscmds {
 	if err != nil {
 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	}
+	r.Lock()
 	r.Client = redis
+	r.Unlock()
 	r.init()
 	return r
 }
 
-func (r *rediscmds) Flush() *rediscmds {
+func (r *rediscmds) Write() *rediscmds {
+	r.RLock()
+	defer r.RUnlock()
 	for _, resp := range r.Client.DoMulti(context.Background(), r.Commands...) {
 		if err := resp.Error(); err != nil {
 			log.Fatalf("Error while adding data points. error = %v", err)
@@ -110,6 +116,8 @@ func (r *rediscmds) Flush() *rediscmds {
 }
 
 func (r *rediscmds) init() *rediscmds {
+	r.Lock()
+	defer r.Unlock()
 	r.Commands = make(rueidis.Commands, 0, redisBatch)
 	r.Limit = 0
 	r.StartTime = time.Now()
@@ -125,15 +133,19 @@ func (r *rediscmds) init() *rediscmds {
 // 	}
 // }
 
-func (r *rediscmds) Append(d *datapoint) *rediscmds {
+func (r *rediscmds) AddDatapoint(d *datapoint) *rediscmds {
+	r.RLock()
 	if r.Limit >= redisBatch || (time.Since(r.StartTime) > redisDelay && r.Limit > 0) {
-		r.Flush().init()
+		r.Write().init()
 		return r
 	}
 	addCmd := r.Client.B().TsAdd().Key(d.Keyname).Timestamp(d.Timestamp_Str).Value(d.Value).Labels()
 	for key, label := range d.Labels {
 		addCmd.Labels(key, label)
 	}
+	r.RUnlock()
+	r.Lock()
+	defer r.Unlock()
 	r.Commands = append(r.Commands, addCmd.Build())
 	r.Limit++
 	return r
@@ -248,7 +260,7 @@ func handleServerConnection(r *rediscmds) {
 			log.Fatalf("Error while unmarshaling JSON. error = %v", err)
 		}
 		//rcv.Prepare()
-		r.Append((*datapoint)(rcv))
+		r.AddDatapoint((*datapoint)(rcv))
 		// value := rcv.Value
 		// timestamp := strconv.FormatInt(rcv.Timestamp*1000, 10)
 		// labels := rcv.Labels()
