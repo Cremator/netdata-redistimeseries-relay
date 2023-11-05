@@ -45,7 +45,7 @@ type rediscmds struct {
 	Client    rueidis.Client
 	Server    net.Conn
 	Limit     int
-	sync.Mutex
+	Mutex     sync.Mutex
 }
 
 // func (d *datapoint) Prepare() *datapoint {
@@ -94,9 +94,7 @@ func (r *rediscmds) Connect() *rediscmds {
 	if err != nil {
 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	}
-	r.Lock()
 	r.Client = redis
-	r.Unlock()
 	r.init()
 	return r
 }
@@ -130,8 +128,7 @@ func (r *rediscmds) init() *rediscmds {
 // }
 
 func (r *rediscmds) AddDatapoint(d *datapoint) *rediscmds {
-	r.Lock()
-	defer r.Unlock()
+	r.Mutex.Lock()
 	if r.Limit >= redisBatch || (time.Since(r.StartTime) > redisDelay && r.Limit > 0) {
 		r.Write().init()
 		return r
@@ -142,6 +139,7 @@ func (r *rediscmds) AddDatapoint(d *datapoint) *rediscmds {
 	}
 	r.Commands = append(r.Commands, addCmd.Build())
 	r.Limit++
+	r.Mutex.Unlock()
 	return r
 }
 
