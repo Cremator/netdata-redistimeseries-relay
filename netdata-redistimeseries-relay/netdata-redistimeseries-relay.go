@@ -130,6 +130,7 @@ func (r *rediscmds) init() *rediscmds {
 
 func (r *rediscmds) AddDatapoint(d *datapoint) *rediscmds {
 	r.Mutex.Lock()
+	r.WG.Add(1)
 	defer r.Mutex.Unlock()
 	defer r.WG.Done()
 	if r.Limit >= redisBatch || (time.Since(r.StartTime) > redisDelay && r.Limit > 0) {
@@ -254,7 +255,6 @@ func handleServerConnection(r *rediscmds) {
 			log.Fatalf("Error while unmarshaling JSON. error = %v", err)
 		}
 		//rcv.Prepare()
-		r.WG.Add(1)
 		r.AddDatapoint((*datapoint)(rcv))
 		r.WG.Wait()
 		// value := rcv.Value
