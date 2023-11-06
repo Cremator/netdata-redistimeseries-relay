@@ -102,6 +102,10 @@ func (r *rediscmds) Connect() *rediscmds {
 }
 
 func (r *rediscmds) Write() *rediscmds {
+	r.Mutex.Lock()
+	r.WG.Add(1)
+	defer r.Mutex.Unlock()
+	defer r.WG.Done()
 	incrCmd := r.Client.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(r.Limit))
 	r.Commands = append(r.Commands, incrCmd.Build())
 	for _, resp := range r.Client.DoMulti(r.Ctx, r.Commands...) {
@@ -132,14 +136,13 @@ func (r *rediscmds) init() *rediscmds {
 // }
 
 func (r *rediscmds) AddDatapoint(d *datapoint) *rediscmds {
+	if r.Limit >= redisBatch || (time.Since(r.StartTime) > redisDelay && r.Limit > 0) {
+		return r.Write()
+	}
 	r.Mutex.Lock()
 	r.WG.Add(1)
 	defer r.Mutex.Unlock()
 	defer r.WG.Done()
-	if r.Limit >= redisBatch || (time.Since(r.StartTime) > redisDelay && r.Limit > 0) {
-		r.Write().init()
-		return r
-	}
 	addCmd := r.Client.B().TsAdd().Key(d.Keyname).Timestamp(d.Timestamp_Str).Value(d.Value).Labels()
 	for key, label := range d.Labels {
 		addCmd.Labels(key, label)
