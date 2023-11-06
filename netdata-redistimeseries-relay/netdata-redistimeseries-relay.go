@@ -102,20 +102,17 @@ func (r *rediscmds) Connect() *rediscmds {
 }
 
 func (r *rediscmds) Write() *rediscmds {
+	incrCmd := r.Client.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(r.Limit))
+	r.Commands = append(r.Commands, incrCmd.Build())
 	for _, resp := range r.Client.DoMulti(r.Ctx, r.Commands...) {
 		if err := resp.Error(); err != nil {
 			log.Fatalf("Error while adding data points. error = %v", err)
 		}
 	}
-	resp := r.Client.Do(context.Background(), r.Client.B().TsIncrby().Key("netdataredistimeseriesrelaycounter").Value(float64(r.Limit)).Build())
-	if err := resp.Error(); err != nil {
-		log.Fatalf("Error while increasing data points counter. error = %v", err)
-	}
 	if logConn != "none" {
 		log.Printf("Processed %d entries, %d current []Commands len, %s since last write.\n", r.Limit, len(r.Commands), time.Since(r.StartTime))
 	}
-	r.init()
-	return r
+	return r.init()
 }
 
 func (r *rediscmds) init() *rediscmds {
