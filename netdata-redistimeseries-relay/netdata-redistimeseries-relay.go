@@ -105,12 +105,16 @@ func (r *rediscmds) Write() *rediscmds {
 	r.WG.Add(1)
 	defer r.Mutex.Unlock()
 	defer r.WG.Done()
-	incrCmd := r.Client.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(r.Limit))
-	r.Commands = append(r.Commands, incrCmd.Build())
+	//incrCmd := r.Client.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(r.Limit))
+	//r.Commands = append(r.Commands, incrCmd.Build())
 	for _, resp := range r.Client.DoMulti(context.Background(), r.Commands...) {
 		if err := resp.Error(); err != nil {
 			log.Fatalf("Error while adding data points. error = %v", err)
 		}
+	}
+	resp := r.Client.Do(context.Background(), r.Client.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(r.Limit)).Build())
+	if err := resp.Error(); err != nil {
+		log.Fatalf("Error while increasing data points counter. error = %v", err)
 	}
 	if logConn != "none" {
 		log.Printf("Processed %d entries, %d current []Commands len, %s since last write.\n", r.Limit, len(r.Commands), time.Since(r.StartTime))
