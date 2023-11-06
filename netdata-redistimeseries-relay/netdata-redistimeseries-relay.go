@@ -45,6 +45,7 @@ type rediscmds struct {
 	Client    rueidis.Client
 	Server    net.Conn
 	Limit     int
+	Ctx       context.Context
 	Mutex     sync.Mutex
 	WG        sync.WaitGroup
 }
@@ -101,15 +102,20 @@ func (r *rediscmds) Connect() *rediscmds {
 }
 
 func (r *rediscmds) Write() *rediscmds {
-	for _, resp := range r.Client.DoMulti(context.Background(), r.Commands...) {
+	for _, resp := range r.Client.DoMulti(r.Ctx, r.Commands...) {
 		if err := resp.Error(); err != nil {
 			log.Fatalf("Error while adding data points. error = %v", err)
 		}
 	}
-	if logConn != "none" {
-		log.Printf("Processed %d entries, %s since last flush.\n", r.Limit, time.Since(r.StartTime))
+	resp := r.Client.Do(context.Background(), r.Client.B().TsIncrby().Key("netdataredistimeseriesrelaycounter").Value(float64(r.Limit)).Build())
+	if err := resp.Error(); err != nil {
+		log.Fatalf("Error while increasing data points counter. error = %v", err)
 	}
-	return r.init()
+	if logConn != "none" {
+		log.Printf("Processed %d entries, %d current []Commands len, %s since last write.\n", r.Limit, len(r.Commands), time.Since(r.StartTime))
+	}
+	r.init()
+	return r
 }
 
 func (r *rediscmds) init() *rediscmds {
@@ -214,6 +220,7 @@ func server() {
 	// }
 	r := rediscmds{}
 	r.Connect().init()
+	defer r.Client.Close()
 	s, err := net.Listen("tcp", listenAddress)
 	if err != nil {
 		log.Fatalf("Error while trying to listen to %s. error = %v", listenAddress, err)
@@ -236,7 +243,7 @@ func server() {
 
 func handleServerConnection(r *rediscmds) {
 	defer r.Server.Close()
-	defer r.Client.Close()
+	//defer r.Client.Close()
 	//c.SetDeadline(time.Now().Add(redisDelay))
 	//tnow := time.Now()
 	reader := bufio.NewScanner(r.Server)
