@@ -45,7 +45,6 @@ type rediscmds struct {
 	Client    rueidis.Client
 	Server    net.Conn
 	Limit     int
-	Ctx       context.Context
 	Mutex     sync.Mutex
 	WG        sync.WaitGroup
 }
@@ -108,7 +107,7 @@ func (r *rediscmds) Write() *rediscmds {
 	defer r.WG.Done()
 	incrCmd := r.Client.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(r.Limit))
 	r.Commands = append(r.Commands, incrCmd.Build())
-	for _, resp := range r.Client.DoMulti(r.Ctx, r.Commands...) {
+	for _, resp := range r.Client.DoMulti(context.Background(), r.Commands...) {
 		if err := resp.Error(); err != nil {
 			log.Fatalf("Error while adding data points. error = %v", err)
 		}
