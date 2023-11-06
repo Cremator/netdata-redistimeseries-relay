@@ -137,7 +137,9 @@ func (r *rediscmds) init() *rediscmds {
 
 func (r *rediscmds) AddDatapoint(d *datapoint) *rediscmds {
 	if r.Limit >= redisBatch || (time.Since(r.StartTime) > redisDelay && r.Limit > 0) {
-		return r.Write()
+		r.Write()
+		r.WG.Wait()
+		return r
 	}
 	r.Mutex.Lock()
 	r.WG.Add(1)
