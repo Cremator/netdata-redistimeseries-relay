@@ -118,7 +118,7 @@ func (r *rediscmds) Write() *rediscmds {
 		log.Fatalf("Error while increasing data points counter. error = %v", err)
 	}
 	if logConn != "none" {
-		log.Printf("Processed %d entries, %d current []Commands len, %s since last write.\n", r.Limit, len(r.Commands), time.Since(r.StartTime))
+		log.Printf("Processed %d entries, %s since last write.\n", r.Limit, time.Since(r.StartTime))
 	}
 	return r.init()
 }
