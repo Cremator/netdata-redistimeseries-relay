@@ -43,10 +43,11 @@ type rediscmds struct {
 	Commands  rueidis.Commands
 	StartTime time.Time
 	Client    rueidis.Client
-	Server    net.Conn
-	Limit     int
-	Mutex     sync.Mutex
-	WG        sync.WaitGroup
+	//Server    net.Conn
+	Limit    int
+	Mutex    sync.Mutex
+	WG       sync.WaitGroup
+	MaxDelay time.Duration
 }
 
 // func (d *datapoint) Prepare() *datapoint {
@@ -95,8 +96,8 @@ func (r *rediscmds) Connect() *rediscmds {
 	if err != nil {
 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	}
+	r.MaxDelay = maxDelay
 	r.Client = redis
-	r.init()
 	return r
 }
 
@@ -162,6 +163,7 @@ var (
 	listenAddress       string
 	redisTimeSeriesHost string
 	redisDelay          time.Duration
+	maxDelay            time.Duration
 	logConn             string
 	redisBatch          int
 )
@@ -200,6 +202,7 @@ func init() {
 	flag.StringVar(&listenAddress, "listen-address", LookupEnvOrString("LISTEN_ADDRESS", "127.0.0.1:8080"), "The host:port for listening for JSON inputs")
 	flag.StringVar(&redisTimeSeriesHost, "redistimeseries-host", LookupEnvOrString("REDIS_ADDRESS", "localhost:6379"), "The host:port for Redis connection")
 	flag.DurationVar(&redisDelay, "redis-delay", LookupEnvOrDuration("REDIS_DELAY", time.Millisecond*500), "Delay Redis TS.ADDs duration")
+	flag.DurationVar(&maxDelay, "max-delay", LookupEnvOrDuration("MAX_DELAY", time.Millisecond*1000), "Max Delay Redis TS.ADDs duration")
 	flag.IntVar(&redisBatch, "redis-batch", LookupEnvOrInt("REDIS_BATCH", 500), "Redis TS.ADD cmds max batch")
 	flag.StringVar(&logConn, "connection-log", LookupEnvOrString("CONN_LOG", "standard"), "Show per connection detailed log - none, standard, detail")
 	flag.Parse()
@@ -233,6 +236,7 @@ func server() {
 	}
 	log.Printf("Configured redis delay is %s, netdata JSON connection batch size is %d, and logs %s...\n", redisDelay, redisBatch, logConn)
 	log.Printf("Listening at %s for netdata JSON inputs, and pushing RedisTimeSeries datapoints to %s...\n", listenAddress, redisTimeSeriesHost)
+	go ticker(&r)
 	for {
 		// accept a connection
 		c, err := s.Accept()
@@ -240,24 +244,37 @@ func server() {
 			log.Println(err)
 			continue
 		}
-		r.Server = c
+		//r.Server = c
 		// handle the connection
-		go handleServerConnection(&r)
+		go handleServerConnection(&r, c)
 	}
 }
 
-func handleServerConnection(r *rediscmds) {
-	defer r.Server.Close()
+func ticker(r *rediscmds) {
+	t := time.NewTicker(r.MaxDelay)
+	go func() {
+		for ; ; <-t.C {
+			if r.Limit > 0 {
+				r.Write()
+				r.WG.Wait()
+			}
+		}
+	}()
+
+}
+
+func handleServerConnection(r *rediscmds, c net.Conn) {
+	defer c.Close()
 	//defer r.Client.Close()
 	//c.SetDeadline(time.Now().Add(redisDelay))
 	//tnow := time.Now()
-	reader := bufio.NewScanner(r.Server)
+	reader := bufio.NewScanner(c)
 	//reader.Split(bufio.ScanLines)
 
 	//rem := c.RemoteAddr().String()
 	//cmds := make(rueidis.Commands, 0, redisBatch)
 	if logConn == "detail" {
-		log.Printf("Connection from %s, received %d bytes\n", r.Server.RemoteAddr(), len(reader.Bytes()))
+		log.Printf("Connection from %s, received %d bytes\n", c.RemoteAddr(), len(reader.Bytes()))
 	}
 	for reader.Scan() {
 		line := reader.Bytes()
