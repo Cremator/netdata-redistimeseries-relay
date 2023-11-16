@@ -255,6 +255,9 @@ func ticker(r *rediscmds) {
 	go func() {
 		for ; ; <-t.C {
 			if r.Limit > 0 {
+				if logConn == "detail" {
+					log.Println("Ticker initiated write!")
+				}
 				r.Write()
 				r.WG.Wait()
 			}
