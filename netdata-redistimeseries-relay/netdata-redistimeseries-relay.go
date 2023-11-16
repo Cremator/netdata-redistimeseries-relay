@@ -109,8 +109,6 @@ func (r *rediscmds) Write() *rediscmds {
 	if r.Limit == 0 {
 		return r
 	}
-	//incrCmd := r.Client.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(r.Limit))
-	//r.Commands = append(r.Commands, incrCmd.Build())
 	for _, resp := range r.Client.DoMulti(context.Background(), r.Commands...) {
 		if err := resp.Error(); err != nil {
 			log.Fatalf("Error while adding data points. error = %v", err)
