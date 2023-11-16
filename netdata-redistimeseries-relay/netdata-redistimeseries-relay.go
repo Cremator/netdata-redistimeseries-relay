@@ -127,10 +127,6 @@ func (r *rediscmds) Write() *rediscmds {
 }
 
 func (r *rediscmds) init() *rediscmds {
-	r.Mutex.Lock()
-	r.WG.Add(1)
-	defer r.Mutex.Unlock()
-	defer r.WG.Done()
 	r.Commands = make(rueidis.Commands, 0, redisBatch)
 	r.Limit = 0
 	r.StartTime = time.Now()
