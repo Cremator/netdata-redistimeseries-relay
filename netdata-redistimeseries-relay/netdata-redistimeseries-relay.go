@@ -102,13 +102,13 @@ func (r *rediscmds) Connect() *rediscmds {
 }
 
 func (r *rediscmds) Write() *rediscmds {
-	if r.Limit == 0 {
-		return r
-	}
 	r.Mutex.Lock()
 	r.WG.Add(1)
 	defer r.Mutex.Unlock()
 	defer r.WG.Done()
+	if r.Limit == 0 {
+		return r
+	}
 	//incrCmd := r.Client.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(r.Limit))
 	//r.Commands = append(r.Commands, incrCmd.Build())
 	for _, resp := range r.Client.DoMulti(context.Background(), r.Commands...) {
