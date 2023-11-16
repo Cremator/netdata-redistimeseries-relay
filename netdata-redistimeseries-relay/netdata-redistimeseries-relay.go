@@ -106,9 +106,8 @@ func (r *rediscmds) Write() *rediscmds {
 	r.WG.Add(1)
 	defer r.Mutex.Unlock()
 	defer r.WG.Done()
-	if r.Limit == 0 {
-		return r
-	}
+	//incrCmd := r.Client.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(r.Limit))
+	//r.Commands = append(r.Commands, incrCmd.Build())
 	for _, resp := range r.Client.DoMulti(context.Background(), r.Commands...) {
 		if err := resp.Error(); err != nil {
 			log.Fatalf("Error while adding data points. error = %v", err)
@@ -141,7 +140,7 @@ func (r *rediscmds) init() *rediscmds {
 // }
 
 func (r *rediscmds) AddDatapoint(d *datapoint) *rediscmds {
-	if r.Limit >= redisBatch || time.Since(r.StartTime) >= redisDelay {
+	if r.Limit >= redisBatch || (time.Since(r.StartTime) >= redisDelay && r.Limit > 0) {
 		r.Write()
 		r.WG.Wait()
 		return r
@@ -235,7 +234,7 @@ func server() {
 		log.Fatalf("Error while trying to listen to %s. error = %v", listenAddress, err)
 		return
 	}
-	log.Printf("Configured redis delay is %s, max delay is %s, netdata JSON connection batch size is %d, and logs %s...\n", redisDelay, maxDelay, redisBatch, logConn)
+	log.Printf("Configured redis delay is %s, max delays is %s, netdata JSON connection batch size is %d, and logs %s...\n", redisDelay, maxDelay, redisBatch, logConn)
 	log.Printf("Listening at %s for netdata JSON inputs, and pushing RedisTimeSeries datapoints to %s...\n", listenAddress, redisTimeSeriesHost)
 	go ticker(&r)
 	for {
@@ -255,11 +254,13 @@ func ticker(r *rediscmds) {
 	t := time.NewTicker(r.MaxDelay)
 	go func() {
 		for ; ; <-t.C {
-			if logConn == "detail" {
-				log.Println("Ticker write!")
+			if r.Limit > 0 {
+				if logConn == "detail" {
+					log.Println("Ticker initiated write!")
+				}
+				r.Write()
+				r.WG.Wait()
 			}
-			r.Write()
-			r.WG.Wait()
 		}
 	}()
 
