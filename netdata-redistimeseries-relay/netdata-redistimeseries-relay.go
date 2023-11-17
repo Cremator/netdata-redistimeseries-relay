@@ -289,7 +289,7 @@ func handleServerConnection(r rueidis.Client, c net.Conn) {
 	//rem := c.RemoteAddr().String()
 	//cmds := make(rueidis.Commands, 0, redisBatch)
 	if logConn != "none" {
-		log.Printf("Connection from %s, received %d bytes\n", c.RemoteAddr(), len(reader.Bytes()))
+		log.Printf("Connection from %s\n", c.RemoteAddr())
 	}
 	for reader.Scan() {
 		line := reader.Bytes()
