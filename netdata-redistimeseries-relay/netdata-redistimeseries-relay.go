@@ -300,7 +300,10 @@ func handleServerConnection(r rueidis.Client, c net.Conn) {
 		}
 		//rcv.Prepare()
 		//r.AddDatapoint((*datapoint)(rcv))
-		(*datapoint)(rcv).Insert(r)
+		err = (*datapoint)(rcv).Insert(r)
+		if err != nil {
+			log.Fatalf("Error while adding data points. error = %v", err)
+		}
 		//r.WG.Wait()
 		// value := rcv.Value
 		// timestamp := strconv.FormatInt(rcv.Timestamp*1000, 10)
