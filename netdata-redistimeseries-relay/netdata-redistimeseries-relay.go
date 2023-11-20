@@ -83,10 +83,6 @@ func (d *datapoint) Insert(r rueidis.Client) error {
 	if err := resp.Error(); err != nil {
 		return err
 	}
-	respi := r.Do(context.Background(), r.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(1)).Build())
-	if err := respi.Error(); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -229,6 +225,7 @@ func server() {
 	// if err != nil {
 	// 	log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	// }
+	batch := 0
 	r, err := rueidis.NewClient(rueidis.ClientOption{
 		InitAddress:      []string{redisTimeSeriesHost},
 		MaxFlushDelay:    redisDelay,
@@ -257,7 +254,15 @@ func server() {
 		}
 		//r.Server = c
 		// handle the connection
-		go handleServerConnection(r, c)
+		if batch >= redisBatch {
+			respi := r.Do(context.Background(), r.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(batch)).Build())
+			if err := respi.Error(); err != nil {
+				log.Printf("Error while trying to increase datapoint %d. error = %v\n", batch, err)
+			}
+			log.Printf("Increased datapoint clounter with %d...\n", batch)
+			batch = 0
+		}
+		go handleServerConnection(r, c, &batch)
 	}
 }
 
@@ -277,7 +282,7 @@ func server() {
 
 // }
 
-func handleServerConnection(r rueidis.Client, c net.Conn) {
+func handleServerConnection(r rueidis.Client, c net.Conn, b *int) {
 	defer c.Close()
 	defer r.Close()
 	//defer r.Client.Close()
@@ -304,6 +309,7 @@ func handleServerConnection(r rueidis.Client, c net.Conn) {
 		if err != nil {
 			log.Fatalf("Error while adding data points. error = %v", err)
 		}
+		(*b) += 1
 		//r.WG.Wait()
 		// value := rcv.Value
 		// timestamp := strconv.FormatInt(rcv.Timestamp*1000, 10)
