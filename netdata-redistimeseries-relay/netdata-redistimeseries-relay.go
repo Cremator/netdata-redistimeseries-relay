@@ -244,7 +244,7 @@ func server() {
 	}
 	log.Printf("Configured redis delay is %s and logs %s...\n", redisDelay, logConn)
 	log.Printf("Listening at %s for netdata JSON inputs, and pushing RedisTimeSeries datapoints to %s...\n", listenAddress, redisTimeSeriesHost)
-	//go ticker(&r)
+	go ticker(&batch, r)
 	for {
 		// accept a connection
 		c, err := s.Accept()
@@ -254,33 +254,27 @@ func server() {
 		}
 		//r.Server = c
 		// handle the connection
-		if batch >= redisBatch {
-			respi := r.Do(context.Background(), r.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(batch)).Build())
-			if err := respi.Error(); err != nil {
-				log.Printf("Error while trying to increase datapoint %d. error = %v\n", batch, err)
-			}
-			log.Printf("Increased datapoint clounter with %d...\n", batch)
-			batch = 0
-		}
+
 		go handleServerConnection(r, c, &batch)
 	}
 }
 
-// func ticker(r *rediscmds) {
-// 	t := time.NewTicker(r.MaxDelay)
-// 	go func() {
-// 		for ; ; <-t.C {
-// 			if r.Limit > 0 {
-// 				if logConn == "detail" {
-// 					log.Println("Ticker initiated write!")
-// 				}
-// 				r.Write()
-// 				r.WG.Wait()
-// 			}
-// 		}
-// 	}()
+func ticker(batch *int, r rueidis.Client) {
+	t := time.NewTicker(redisDelay)
+	go func() {
+		for ; ; <-t.C {
+			if (*batch) >= redisBatch {
+				respi := r.Do(context.Background(), r.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(*batch)).Build())
+				if err := respi.Error(); err != nil {
+					log.Printf("Error while trying to increase datapoint %d. error = %v\n", batch, err)
+				}
+				log.Printf("Increased netdataredistimeseriesrelay:counter with %d...\n", batch)
+				(*batch) = 0
+			}
+		}
+	}()
 
-// }
+}
 
 func handleServerConnection(r rueidis.Client, c net.Conn, b *int) {
 	defer c.Close()
