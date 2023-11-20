@@ -264,7 +264,7 @@ func ticker(batch *int, r rueidis.Client) {
 	go func() {
 		for ; ; <-t.C {
 			if (*batch) >= redisBatch {
-				respi := r.Do(context.Background(), r.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(*batch)).Build())
+				respi := r.Do(context.Background(), r.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64((*batch))).Build())
 				if err := respi.Error(); err != nil {
 					log.Printf("Error while trying to increase datapoint %d. error = %v\n", (*batch), err)
 				}
