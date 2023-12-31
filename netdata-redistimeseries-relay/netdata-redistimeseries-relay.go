@@ -158,7 +158,6 @@ func ticker(b *atomic.Uint64, r rueidis.Client) {
 	t := time.NewTicker(redisDelay)
 	go func() {
 		for ; ; <-t.C {
-			//log.Printf("debug netdataredistimeseriesrelay:counter %d...\n", b.Load())
 			if l := b.Load(); l >= uint64(redisBatch) {
 				respi := r.Do(context.Background(), r.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(l)).Build())
 				if err := respi.Error(); err != nil {
