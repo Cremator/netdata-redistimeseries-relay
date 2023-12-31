@@ -162,9 +162,10 @@ func ticker(b *atomic.Uint64, r rueidis.Client) {
 				respi := r.Do(context.Background(), r.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(l)).Build())
 				if err := respi.Error(); err != nil {
 					log.Printf("Error while trying to increase datapoint %d. error = %v\n", b, err)
+				} else {
+					log.Printf("Increased netdataredistimeseriesrelay:counter with %d...\n", l)
+					b.Store(0)
 				}
-				log.Printf("Increased netdataredistimeseriesrelay:counter with %d...\n", l)
-				b.Store(0)
 			}
 		}
 	}()
