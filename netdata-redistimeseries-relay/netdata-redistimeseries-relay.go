@@ -158,14 +158,14 @@ func ticker(b *atomic.Uint64, r rueidis.Client) {
 	t := time.NewTicker(redisDelay)
 	go func() {
 		for ; ; <-t.C {
-			l := b.Load()
-			b.Store(0)
-			if l >= uint64(redisBatch) {
+			log.Printf("debug netdataredistimeseriesrelay:counter %d...\n", b.Load())
+			if l := b.Load(); l >= uint64(redisBatch) {
 				respi := r.Do(context.Background(), r.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(l)).Build())
 				if err := respi.Error(); err != nil {
 					log.Printf("Error while trying to increase datapoint %d. error = %v\n", b, err)
 				}
 				log.Printf("Increased netdataredistimeseriesrelay:counter with %d...\n", l)
+				b.Store(0)
 			}
 		}
 	}()
