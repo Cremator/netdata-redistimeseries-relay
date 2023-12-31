@@ -123,6 +123,7 @@ func init() {
 
 func server() {
 	var batch atomic.Uint64
+	batch.Store(0)
 	r, err := rueidis.NewClient(rueidis.ClientOption{
 		InitAddress:      []string{redisTimeSeriesHost},
 		MaxFlushDelay:    redisDelay,
