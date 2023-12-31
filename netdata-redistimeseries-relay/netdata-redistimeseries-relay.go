@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"regexp"
 	"strconv"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -36,29 +37,13 @@ type datapoint struct {
 	Keyname       string
 }
 
+// type redatapoint struct {
+// 	Keyname   string
+// 	Timestamp string
+// 	Labels    map[string]string
+// }
+
 type datapointJSON datapoint
-
-// type rediscmds struct {
-// 	Commands  rueidis.Commands
-// 	StartTime time.Time
-// 	Client    rueidis.Client
-// 	//Server    net.Conn
-// 	Limit    int
-// 	Mutex    sync.Mutex
-// 	WG       sync.WaitGroup
-// 	MaxDelay time.Duration
-// }
-
-// func (d *datapoint) Prepare() *datapoint {
-// 	reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
-// 	if err != nil {
-// 		log.Fatalf("Error while compiling regex. error = %v", err)
-// 	}
-// 	d.Labels = map[string]string{"prefix": reg.ReplaceAllString(d.Prefix, ""), "hostname": reg.ReplaceAllString(d.Hostname, ""), "chart_id": reg.ReplaceAllString(d.Chart_ID, ""), "chart_name": reg.ReplaceAllString(d.Chart_Name, ""), "chart_family": reg.ReplaceAllString(d.Chart_Family, ""), "chart_context": reg.ReplaceAllString(d.Chart_Context, ""), "chart_type": reg.ReplaceAllString(d.Chart_Type, ""), "units": reg.ReplaceAllString(d.Units, ""), "id": reg.ReplaceAllString(d.ID, ""), "name": reg.ReplaceAllString(d.Name, "")}
-// 	d.Keyname = d.Labels["prefix"] + ":" + d.Labels["hostname"] + ":" + d.Labels["chart_family"] + ":" + d.Labels["chart_name"] + ":" + d.Labels["name"]
-// 	d.Timestamp_Str = strconv.FormatInt(d.Timestamp*1000, 10)
-// 	return d
-// }
 
 func (j *datapointJSON) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, (*datapoint)(j)); err != nil {
@@ -85,77 +70,6 @@ func (d *datapoint) Insert(r rueidis.Client) error {
 	}
 	return nil
 }
-
-// func (r *rediscmds) Connect() *rediscmds {
-// 	redis, err := rueidis.NewClient(rueidis.ClientOption{
-// 		InitAddress:   []string{redisTimeSeriesHost},
-// 		MaxFlushDelay: 20 * time.Microsecond,
-// 		DisableCache:  true,
-// 	})
-// 	if err != nil {
-// 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
-// 	}
-// 	r.MaxDelay = maxDelay
-// 	r.Client = redis
-// 	return r
-// }
-
-// func (r *rediscmds) Write() *rediscmds {
-// 	r.Mutex.Lock()
-// 	r.WG.Add(1)
-// 	defer r.Mutex.Unlock()
-// 	defer r.WG.Done()
-// 	//incrCmd := r.Client.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(r.Limit))
-// 	//r.Commands = append(r.Commands, incrCmd.Build())
-// 	for _, resp := range r.Client.DoMulti(context.Background(), r.Commands...) {
-// 		if err := resp.Error(); err != nil {
-// 			log.Fatalf("Error while adding data points. error = %v", err)
-// 		}
-// 	}
-// 	resp := r.Client.Do(context.Background(), r.Client.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(r.Limit)).Build())
-// 	if err := resp.Error(); err != nil {
-// 		log.Fatalf("Error while increasing data points counter. error = %v", err)
-// 	}
-// 	if logConn != "none" {
-// 		log.Printf("Processed %d entries, %s since last write.\n", r.Limit, time.Since(r.StartTime))
-// 	}
-// 	return r.init()
-// }
-
-// func (r *rediscmds) init() *rediscmds {
-// 	r.Commands = make(rueidis.Commands, 0, redisBatch)
-// 	r.Limit = 0
-// 	r.StartTime = time.Now()
-// 	return r
-// }
-
-// func (r *rediscmds) Log() {
-// 	if len(r.Commands) == 0 {
-// 		r.Commands = make(rueidis.Commands, 0, redisBatch)
-// 		r.Limit = 0
-// 	} else {
-// 		log.Fatalf("Error while creating empty commands slice %v. error length = %d", r.Commands, len(r.Commands))
-// 	}
-// }
-
-// func (r *rediscmds) AddDatapoint(d *datapoint) *rediscmds {
-// 	if r.Limit >= redisBatch || (time.Since(r.StartTime) >= redisDelay && r.Limit > 0) {
-// 		r.Write()
-// 		r.WG.Wait()
-// 		return r
-// 	}
-// 	r.Mutex.Lock()
-// 	r.WG.Add(1)
-// 	defer r.Mutex.Unlock()
-// 	defer r.WG.Done()
-// 	addCmd := r.Client.B().TsAdd().Key(d.Keyname).Timestamp(d.Timestamp_Str).Value(d.Value).Labels()
-// 	for key, label := range d.Labels {
-// 		addCmd.Labels(key, label)
-// 	}
-// 	r.Commands = append(r.Commands, addCmd.Build())
-// 	r.Limit++
-// 	return r
-// }
 
 // Program option vars:
 var (
@@ -207,25 +121,8 @@ func init() {
 	flag.Parse()
 }
 
-// func rtsClient() rueidis.Client {
-// 	//r, err := rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{redisTimeSeriesHost}, MaxFlushDelay: redisDelay})
-// 	r, err := rueidis.NewClient(rueidis.ClientOption{
-// 		InitAddress:   []string{redisTimeSeriesHost},
-// 		MaxFlushDelay: 50 * time.Microsecond,
-// 	})
-// 	if err != nil {
-// 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
-// 	}
-// 	return r
-// }
-
 func server() {
-	//r, err := rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{redisTimeSeriesHost}, MaxFlushDelay: redisDelay})
-	// r, err := rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{redisTimeSeriesHost}})
-	// if err != nil {
-	// 	log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
-	// }
-	batch := 0
+	var batch atomic.Uint64
 	r, err := rueidis.NewClient(rueidis.ClientOption{
 		InitAddress:      []string{redisTimeSeriesHost},
 		MaxFlushDelay:    redisDelay,
@@ -235,8 +132,6 @@ func server() {
 	if err != nil {
 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	}
-	// r.Connect().init()
-	// defer r.Client.Close()
 	s, err := net.Listen("tcp", listenAddress)
 	if err != nil {
 		log.Fatalf("Error while trying to listen to %s. error = %v", listenAddress, err)
@@ -252,41 +147,36 @@ func server() {
 			log.Println(err)
 			continue
 		}
-		//r.Server = c
 		// handle the connection
 
 		go handleServerConnection(r, c, &batch)
 	}
 }
 
-func ticker(batch *int, r rueidis.Client) {
+func ticker(b *atomic.Uint64, r rueidis.Client) {
 	t := time.NewTicker(redisDelay)
 	go func() {
+		l := b.Load()
 		for ; ; <-t.C {
-			if (*batch) >= redisBatch {
-				respi := r.Do(context.Background(), r.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64((*batch))).Build())
+			if l >= uint64(redisBatch) {
+				respi := r.Do(context.Background(), r.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(l)).Build())
 				if err := respi.Error(); err != nil {
-					log.Printf("Error while trying to increase datapoint %d. error = %v\n", (*batch), err)
+					log.Printf("Error while trying to increase datapoint %d. error = %v\n", b, err)
 				}
-				log.Printf("Increased netdataredistimeseriesrelay:counter with %d...\n", (*batch))
-				(*batch) = 0
+				log.Printf("Increased netdataredistimeseriesrelay:counter with %d...\n", l)
+				b.Store(0)
 			}
 		}
 	}()
 
 }
 
-func handleServerConnection(r rueidis.Client, c net.Conn, b *int) {
+func handleServerConnection(r rueidis.Client, c net.Conn, b *atomic.Uint64) {
 	defer c.Close()
 	defer r.Close()
-	//defer r.Client.Close()
-	//c.SetDeadline(time.Now().Add(redisDelay))
-	//tnow := time.Now()
 	reader := bufio.NewScanner(c)
-	//reader.Split(bufio.ScanLines)
+	reader.Split(bufio.ScanLines)
 
-	//rem := c.RemoteAddr().String()
-	//cmds := make(rueidis.Commands, 0, redisBatch)
 	if logConn != "none" {
 		log.Printf("Connection from %s\n", c.RemoteAddr())
 	}
@@ -297,48 +187,13 @@ func handleServerConnection(r rueidis.Client, c net.Conn, b *int) {
 		if err != nil {
 			log.Fatalf("Error while unmarshaling JSON. error = %v", err)
 		}
-		//rcv.Prepare()
-		//r.AddDatapoint((*datapoint)(rcv))
 		err = (*datapoint)(rcv).Insert(r)
 		if err != nil {
 			log.Fatalf("Error while adding data points. error = %v", err)
 		}
-		(*b) += 1
-		//r.WG.Wait()
-		// value := rcv.Value
-		// timestamp := strconv.FormatInt(rcv.Timestamp*1000, 10)
-		// labels := rcv.Labels()
-		// //Metrics are sent to the database server as prefix:hostname:chart_family:chart_name:metric_name.
-		// keyName := labels["prefix"] + ":" + labels["hostname"] + ":" + labels["chart_family"] + ":" + labels["chart_name"] + ":" + labels["name"]
-		// addCmd := r.B().TsAdd().Key(keyName).Timestamp(timestamp).Value(value).Labels()
-		// for key, label := range labels {
-		// 	addCmd.Labels(key, label)
-		// }
-		// cmds = append(cmds, addCmd.Build())
-		// t1 := time.Now()
-		// l1 := len(cmds)
-		// if (l1 > 0 && t1.After(tnow.Add(redisDelay))) || l1 >= redisBatch-1 {
-		// 	for _, resp := range r.DoMulti(context.Background(), cmds...) {
-		// 		if err := resp.Error(); err != nil {
-		// 			log.Fatalf("Error while adding data points. error = %v", err)
-		// 		}
-		// 	}
-		// 	showLog(l1, rcv.Hostname, rem, tnow, t1, string(line))
-		// 	cmds = nil
-		// 	tnow = time.Now()
-		// }
+		b.Add(1)
 	}
 }
-
-// func showLog(l1 int, host string, rem string, delay time.Time, t1 time.Time, line string) {
-// 	if logConn == "none" {
-// 		return
-// 	}
-// 	log.Printf("Processed %d entries, %s since last data processing from %s(%s)\n", l1, t1.Sub(delay), host, rem)
-// 	if logConn == "detail" {
-// 		log.Printf("Details: %s\n", line)
-// 	}
-// }
 
 func main() {
 	log.Println("Starting netdata-redistimeseries-relay...")
