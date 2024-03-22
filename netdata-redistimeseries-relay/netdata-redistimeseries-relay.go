@@ -178,6 +178,7 @@ func handleServerConnection(c net.Conn, redisClient rueidis.Client, ctx context.
 			}
 			err = (*datapoint)(rcv).Insert(redisClient)
 			if err != nil {
+				log.Printf("Error while adding data point. error = %v", (*datapoint)(rcv))
 				log.Fatalf("Error while adding data points. error = %v", err)
 			}
 			if batch.Add(1); batch.Load() >= uint64(redisBatch) {
