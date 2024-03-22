@@ -49,13 +49,13 @@ func (j *datapointJSON) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, (*datapoint)(j)); err != nil {
 		return err
 	}
-	reg, err := regexp.Compile("[^a-zA-Z0-9_./]+")
+	reg, err := regexp.Compile("[^a-zA-Z0-9_%./]+")
 	if err != nil {
 		return err
 	}
-	if j.Units == "%" {
-		j.Units = "percent"
-	}
+	// if j.Units == "%" {
+	// 	j.Units = "percent"
+	// }
 	j.Labels = map[string]string{"prefix": reg.ReplaceAllString(j.Prefix, ""), "hostname": reg.ReplaceAllString(j.Hostname, ""), "chart_id": reg.ReplaceAllString(j.Chart_ID, ""), "chart_name": reg.ReplaceAllString(j.Chart_Name, ""), "chart_family": reg.ReplaceAllString(j.Chart_Family, ""), "chart_context": reg.ReplaceAllString(j.Chart_Context, ""), "chart_type": reg.ReplaceAllString(j.Chart_Type, ""), "units": reg.ReplaceAllString(j.Units, ""), "id": reg.ReplaceAllString(j.ID, ""), "name": reg.ReplaceAllString(j.Name, "")}
 	j.Keyname = j.Labels["prefix"] + ":" + j.Labels["hostname"] + ":" + j.Labels["chart_family"] + ":" + j.Labels["chart_name"] + ":" + j.Labels["name"]
 	j.Timestamp_Str = strconv.FormatInt(j.Timestamp*1000, 10)
