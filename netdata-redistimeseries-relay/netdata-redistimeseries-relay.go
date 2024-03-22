@@ -59,7 +59,7 @@ func (j *datapointJSON) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (d *datapoint) Insert() error {
+func (d *datapoint) Insert(redisClient rueidis.Client) error {
 	rCmd := redisClient.B().TsAdd().Key(d.Keyname).Timestamp(d.Timestamp_Str).Value(d.Value).Labels()
 	for key, label := range d.Labels {
 		rCmd.Labels(key, label)
@@ -79,7 +79,6 @@ var (
 	maxDelay            time.Duration
 	logConn             string
 	redisBatch          int
-	redisClient         rueidis.Client
 	logger              = log.New(os.Stdout, "", log.LstdFlags)
 	batch               atomic.Uint64
 )
@@ -122,8 +121,10 @@ func init() {
 	flag.IntVar(&redisBatch, "redis-batch", LookupEnvOrInt("REDIS_BATCH", 500), "Redis TS.ADD cmds max batch")
 	flag.StringVar(&logConn, "connection-log", LookupEnvOrString("CONN_LOG", "standard"), "Show per connection detailed log - none, standard, detail")
 	flag.Parse()
-	var err error
-	redisClient, err = rueidis.NewClient(rueidis.ClientOption{
+}
+
+func server() {
+	r, err := rueidis.NewClient(rueidis.ClientOption{
 		InitAddress:      []string{redisTimeSeriesHost},
 		MaxFlushDelay:    redisDelay,
 		DisableCache:     true,
@@ -132,10 +133,7 @@ func init() {
 	if err != nil {
 		log.Fatalf("Error while creating new connection to %s. error = %v", redisTimeSeriesHost, err)
 	}
-}
-
-func server() {
-	defer redisClient.Close()
+	defer r.Close()
 	batch.Store(0)
 
 	s, err := net.Listen("tcp", listenAddress)
@@ -145,7 +143,7 @@ func server() {
 	}
 	logger.Printf("Configured redis delay is %s and logs %s...\n", redisDelay, logConn)
 	logger.Printf("Listening at %s for netdata JSON inputs, and pushing RedisTimeSeries datapoints to %s...\n", listenAddress, redisTimeSeriesHost)
-	go ticker()
+	//go ticker(r)
 	for {
 		// accept a connection
 		c, err := s.Accept()
@@ -155,29 +153,29 @@ func server() {
 		}
 		// handle the connection
 
-		go handleServerConnection(c)
+		go handleServerConnection(c, r)
 	}
 }
 
-func ticker() {
-	t := time.NewTicker(redisDelay)
-	go func() {
-		for ; ; <-t.C {
-			if l := batch.Load(); l >= uint64(redisBatch) {
-				respi := redisClient.Do(context.Background(), redisClient.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(l)).Build())
-				if err := respi.Error(); err != nil {
-					logger.Printf("Error while trying to increase datapoint %d. error = %v\n", batch.Load(), err)
-				} else {
-					logger.Printf("Increased netdataredistimeseriesrelay:counter with %d...\n", l)
-					batch.Store(0)
-				}
-			}
-		}
-	}()
+// func ticker(redisClient rueidis.Client) {
+// 	t := time.NewTicker(redisDelay)
+// 	go func() {
+// 		for ; ; <-t.C {
+// 			if l := batch.Load(); l >= uint64(redisBatch) {
+// 				respi := redisClient.Do(context.Background(), redisClient.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(l)).Build())
+// 				if err := respi.Error(); err != nil {
+// 					logger.Printf("Error while trying to increase datapoint %d. error = %v\n", batch.Load(), err)
+// 				} else {
+// 					logger.Printf("Increased netdataredistimeseriesrelay:counter with %d...\n", l)
+// 					batch.Store(0)
+// 				}
+// 			}
+// 		}
+// 	}()
 
-}
+// }
 
-func handleServerConnection(c net.Conn) {
+func handleServerConnection(c net.Conn, redisClient rueidis.Client) {
 	defer c.Close()
 	reader := bufio.NewScanner(c)
 	reader.Split(bufio.ScanLines)
@@ -192,11 +190,20 @@ func handleServerConnection(c net.Conn) {
 		if err != nil {
 			log.Fatalf("Error while unmarshaling JSON. error = %v", err)
 		}
-		err = (*datapoint)(rcv).Insert()
+		err = (*datapoint)(rcv).Insert(redisClient)
 		if err != nil {
 			log.Fatalf("Error while adding data points. error = %v", err)
 		}
-		batch.Add(1)
+		if batch.Add(1); batch.Load() >= uint64(redisBatch) {
+			l := batch.Swap(0)
+			respi := redisClient.Do(context.Background(), redisClient.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(l)).Build())
+			if err := respi.Error(); err != nil {
+				logger.Printf("Error while trying to increase datapoint, adding %d. error = %v\n", l, err)
+				batch.Add(l)
+			} else {
+				logger.Printf("Increased netdataredistimeseriesrelay:counter with %d...\n", l)
+			}
+		}
 	}
 }
 
