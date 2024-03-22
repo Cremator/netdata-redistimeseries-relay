@@ -143,14 +143,14 @@ func server() {
 		log.Fatalf("Error while trying to listen to %s. error = %v", listenAddress, err)
 		return
 	}
-	log.Printf("Configured redis delay is %s and logs %s...\n", redisDelay, logConn)
-	log.Printf("Listening at %s for netdata JSON inputs, and pushing RedisTimeSeries datapoints to %s...\n", listenAddress, redisTimeSeriesHost)
+	logger.Printf("Configured redis delay is %s and logs %s...\n", redisDelay, logConn)
+	logger.Printf("Listening at %s for netdata JSON inputs, and pushing RedisTimeSeries datapoints to %s...\n", listenAddress, redisTimeSeriesHost)
 	go ticker()
 	for {
 		// accept a connection
 		c, err := s.Accept()
 		if err != nil {
-			log.Println(err)
+			logger.Println(err)
 			continue
 		}
 		// handle the connection
@@ -166,9 +166,9 @@ func ticker() {
 			if l := batch.Load(); l >= uint64(redisBatch) {
 				respi := redisClient.Do(context.Background(), redisClient.B().TsIncrby().Key("netdataredistimeseriesrelay:counter").Value(float64(l)).Build())
 				if err := respi.Error(); err != nil {
-					log.Printf("Error while trying to increase datapoint %d. error = %v\n", batch.Load(), err)
+					logger.Printf("Error while trying to increase datapoint %d. error = %v\n", batch.Load(), err)
 				} else {
-					log.Printf("Increased netdataredistimeseriesrelay:counter with %d...\n", l)
+					logger.Printf("Increased netdataredistimeseriesrelay:counter with %d...\n", l)
 					batch.Store(0)
 				}
 			}
@@ -183,7 +183,7 @@ func handleServerConnection(c net.Conn) {
 	reader.Split(bufio.ScanLines)
 
 	if logConn != "none" {
-		log.Printf("Connection from %s\n", c.RemoteAddr())
+		logger.Printf("Connection from %s\n", c.RemoteAddr())
 	}
 	for reader.Scan() {
 		line := reader.Bytes()
@@ -201,7 +201,7 @@ func handleServerConnection(c net.Conn) {
 }
 
 func main() {
-	log.Println("Starting netdata-redistimeseries-relay...")
+	logger.Println("Starting netdata-redistimeseries-relay...")
 	go server()
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
@@ -211,5 +211,5 @@ func main() {
 		done <- true
 	}()
 	<-done
-	log.Println("Exiting...")
+	logger.Println("Exiting...")
 }
